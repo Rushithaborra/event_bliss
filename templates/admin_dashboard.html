@@ -1,0 +1,53 @@
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+
+<div class="dashboard-container">
+
+    <h1 class="dashboard-title">✨ Admin Control Panel ✨</h1>
+    <div class="stats-container">
+
+    <div class="stat-card">
+        <h3>🎟</h3>
+        <p>{{ total_events }}</p>
+        <span>Total Events</span>
+    </div>
+
+    <div class="stat-card">
+        <h3>👩‍🎓</h3>
+        <p>{{ total_students }}</p>
+        <span>Total Students</span>
+    </div>
+
+    <div class="stat-card">
+        <h3>📝</h3>
+        <p>{{ total_registrations }}</p>
+        <span>Total Registrations</span>
+    </div>
+
+</div>
+
+    <div class="dashboard-cards">
+
+        <a href="/admin_events" class="dashboard-card">
+            <div class="card-icon">📋</div>
+            <div class="card-title">View Events</div>
+            <div class="card-desc">Manage & see all events</div>
+        </a>
+
+        <a href="/create_event" class="dashboard-card">
+            <div class="card-icon">➕</div>
+            <div class="card-title">Create Event</div>
+            <div class="card-desc">Add a new dreamy event</div>
+        </a>
+
+        <a href="/logout" class="dashboard-card logout-card">
+            <div class="card-icon">🌸</div>
+            <div class="card-title">Logout</div>
+            <div class="card-desc">Leave admin mode</div>
+        </a>
+
+    </div>
+
+</div>

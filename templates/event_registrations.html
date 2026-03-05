@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Event Registrations</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+    <div class="card">
+
+    <h2>✨ {{ event[1] }} ✨</h2>
+
+    <p>
+    📅 {{ event[2] }} <br>
+    📍 {{ event[4] }} <br>
+    🎀 Theme: {{ event[6] }} <br>
+    </p>
+
+    <hr>
+
+    <form method="POST">
+        First Name:
+        <input type="text" name="first_name">
+
+        Middle Name:
+        <input type="text" name="middle_name">
+
+        Last Name:
+        <input type="text" name="last_name">
+
+        Year:
+        <input type="text" name="year">
+
+        Department:
+        <input type="text" name="dept">
+
+        Section:
+        <input type="text" name="section">
+
+        Roll No:
+        <input type="text" name="roll_no">
+
+        Phone:
+        <input type="text" name="phone">
+
+        <button type="submit">Submit 💖</button>
+    </form>
+
+    </div>
+    </div>
+
+
+</body>
+</html>
+
+
+
+<div class="container">
+<div class="card">
+
+<h2>✨ {{ event[1] }} ✨</h2>
+
+<p>
+📅 {{ event[2] }} <br>
+📍 {{ event[4] }} <br>
+🎀 Theme: {{ event[6] }} <br>
+</p>
+
+<hr>
+
+<form method="POST">
+    First Name:
+    <input type="text" name="first_name">
+
+    Middle Name:
+    <input type="text" name="middle_name">
+
+    Last Name:
+    <input type="text" name="last_name">
+
+    Year:
+    <input type="text" name="year">
+
+    Department:
+    <input type="text" name="dept">
+
+    Section:
+    <input type="text" name="section">
+
+    Roll No:
+    <input type="text" name="roll_no">
+
+    Phone:
+    <input type="text" name="phone">
+
+    <button type="submit">Submit 💖</button>
+</form>
+
+</div>
+</div>
+
+
+
+
+<h2>Students Registered for Event</h2>
+
+<table border="1">
+    <tr>
+        <th>Event Name</th>
+        <th>Student Name</th>
+        <th>Email</th>
+    </tr>
+
+    {% for row in data %}
+    <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td>{{ row[2] }}</td>
+    </tr>
+    {% endfor %}
+
+</table>
+
+<br>
+<a href="/create_event">Back</a>

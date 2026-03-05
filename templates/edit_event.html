@@ -1,0 +1,18 @@
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+
+
+<h2>Edit Event</h2>
+
+<form method="POST">
+    Event Name: <input type="text" name="event_name" value="{{ event[1] }}"><br><br>
+    Date: <input type="date" name="event_date" value="{{ event[2] }}"><br><br>
+    Venue: <input type="text" name="venue" value="{{ event[3] }}"><br><br>
+    Max Seats: <input type="number" name="max_seats" value="{{ event[4] }}"><br><br>
+    <button type="submit">Update</button>
+</form>
+
+<br>
+<a href="/admin/events">Back</a>

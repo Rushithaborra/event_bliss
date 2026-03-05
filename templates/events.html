@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Available Events</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">   
+</head>
+
+<br><br>
+
+
+
+<div class="navbar">
+    <div><strong>🌸 Event Bliss</strong></div>
+
+    <div class="nav-links">
+        <a href="/dashboard">Home</a>
+        <a href="javascript:history.back()">Back</a>
+    </div>
+</div>
+
+
+<body>
+
+<div class="container">
+
+<h2>✨ Available Events ✨</h2>
+
+<div class="event-grid">
+
+{% for event in events %}
+<div class="event-card">
+
+    <div class="event-title">{{ event[1] }}</div>
+
+    <div class="event-info">📅 {{ event[2] }}</div>
+    <div class="event-info">📍 {{ event[3] }}</div>
+    <div class="event-info seats">🎟 Seats Left: 
+        <span class="seat-count">{{ event[4] }}</span>
+    </div>
+
+    <br>
+
+    {% if event[0] in registered_event_ids %}
+        <span class="status-pill status-registered">
+            <button disabled>Registered 💖</button>
+        </span>
+
+    {% elif event[4] > 0 %}
+        <a href="/register_event/{{ event[0] }}" class="button">
+            Register 🌸</button>
+        </a>
+
+    {% else %}
+        <span class="status-pill status-full">
+            Full 🥺</button>
+        </span>
+    {% endif %}
+
+</div>
+{% endfor %}
+
+</div>
+
+</div>
+
+</body>
+</html>

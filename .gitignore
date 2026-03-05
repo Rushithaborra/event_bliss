@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Database & Credentials
+*.db
+*.sqlite
+.env
+config.py
+
+# Flask
+instance/
+.webassets-cache
+
+# OS
+.DS_Store
+.DS_Store?
+
+# Logs
+*.log

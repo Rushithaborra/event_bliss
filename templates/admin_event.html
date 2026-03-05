@@ -1,0 +1,32 @@
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+
+<div class="container">
+
+<h2>💌 Registered Students</h2>
+
+<div class="card">
+
+<table>
+    <tr>
+    <th>Name</th>
+    <th>Email</th>
+    <th>Registration Date</th>
+</tr>
+
+{% for student in students %}
+<tr>
+    <td>{{ student[0] }}</td>
+    <td>{{ student[1] }}</td>
+    <td>{{ student[2] }}</td>
+</tr>
+{% endfor %}
+</table>
+
+</div>
+</div>
+
+<br>
+<a href="/admin_dashboard">Back</a>

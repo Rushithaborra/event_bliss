@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Event</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">   
+<body>
+    <h2>Create New Event</h2>
+
+    <form method="POST">
+        <label>Event Name:</label><br>
+        <input type="text" name="event_name" required><br><br>
+
+        <label>Event Date:</label><br>
+        <input type="date" name="event_date" required><br><br>
+
+        <label>Time:</label><br>
+        <input type="time" name="event_time" required><br><br>
+
+        <label>Venue:</label><br>
+        <input type="text" name="venue" required><br><br>
+
+        <label>Max Seats:</label><br>
+        <input type="number" name="max_seats" required><br><br>
+
+        <label>Theme:</label><br>
+        <input type="text" name="theme"><br><br>
+
+        <label>Requirements:</label><br>
+        <textarea name="requirements"></textarea><br><br>
+
+        <button type="submit">Create Event</button>
+        
+
+    </form>
+
+    <br>
+    <div class="card-top">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-back">
+            ← Back to Dashboard
+    </a>
+</div>
+</body>
+</html>

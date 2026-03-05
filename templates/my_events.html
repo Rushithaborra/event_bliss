@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Events</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="success-popup">
+        <div id="confetti-container"></div>
+        {{ messages[0] }}
+    </div>
+  {% endif %}
+{% endwith %}
+<h2>My Registered Events</h2>
+
+    
+
+<div class="container">
+
+<h2>💌 My Registered Events</h2>
+
+<div class="card">
+
+<table>
+    <tr>
+        <th>Event Name</th>
+        <th>Date</th>
+        <th>Venue</th>
+    </tr>
+
+    {% for event in events %}
+    <tr>
+        <td>{{ event[0] }}</td>
+        <td>{{ event[1] }}</td>
+        <td>{{ event[2] }}</td>
+    </tr>
+    {% endfor %}
+
+
+</table>
+
+</div>
+</div>
+
+<br>
+<div class="card-top">
+    <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+</div>
+
+<script>
+    const confettiContainer = document.getElementById('confetti-container');
+
+    function createConfetti() {
+        for (let i = 0; i < 40; i++) {
+            let confetti = document.createElement('div');
+            confetti.classList.add('confetti');
+            confetti.style.left = Math.random() * 100 + 'vw';
+            confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+            confettiContainer.appendChild(confetti);
+
+            setTimeout(() => confetti.remove(), 3000);
+        }
+    }
+
+    createConfetti();
+</script>
+
+</body>
+</html>

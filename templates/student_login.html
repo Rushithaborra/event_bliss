@@ -1,0 +1,16 @@
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+
+<h2>Student Login</h2>
+
+<form method="POST">
+    Email: <input type="text" name="email"><br><br>
+    Password: <input type="password" name="password"><br><br>
+    <button type="submit">Login</button>
+</form>
+
+<br>
+<a href="/select_role">Back</a>
+
