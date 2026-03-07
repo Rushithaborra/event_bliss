@@ -29,10 +29,12 @@
     <div class="glass-card">
 
         <h2>✨ Login ✨</h2>
+        
+
         {% with messages = get_flashed_messages() %}
             {% if messages %}
-                <div class="error-box">
-                    {{ messages[0] }}
+                <div class="flash-message">
+                {{ messages[0] }}
                 </div>
             {% endif %}
         {% endwith %}
@@ -50,6 +52,9 @@
             {% endif %}
 
             <button type="submit" class="primary-btn">Login 🌸</button>
+            <p class="forgot">
+                <a href="/forgot_password">Forgot Password?</a>
+            </p>
         </form>
 
         <a href="/select_role" class="back-link">← Back</a>

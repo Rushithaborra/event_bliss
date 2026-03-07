@@ -17,17 +17,61 @@ Requirements: {{ event[7] }}
 
 <h3>Registration Form</h3>
 
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="flash-message">
+      {% for msg in messages %}
+        <p>{{ msg }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
 <form method="POST">
 
-First Name: <input type="text" name="first_name"><br><br>
-Middle Name: <input type="text" name="middle_name"><br><br>
-Last Name: <input type="text" name="last_name"><br><br>
+First Name: <input
+type="text"
+name="first_name"
+value="{{ form_data.first_name if form_data else '' }}"
+class="{% if missing_fields and 'first_name' in missing_fields %}error-input{% endif %}"><br><br>
 
-Year: <input type="text" name="year"><br><br>
-Department: <input type="text" name="dept"><br><br>
-Section: <input type="text" name="section"><br><br>
-Roll No: <input type="text" name="roll_no"><br><br>
-Phone: <input type="text" name="phone"><br><br>
+Middle Name: <input type="text" name="middle_name" value="{{ form_data.middle_name if form_data else '' }}"><br><br>
+
+Last Name: <input
+type="text"
+name="last_name"
+value="{{ form_data.last_name if form_data else '' }}"
+class="{% if missing_fields and 'last_name' in missing_fields %}error-input{% endif %}"><br><br>
+
+Year: <input
+type="text"
+name="year"
+value="{{ form_data.year if form_data else '' }}"
+class="{% if missing_fields and 'year' in missing_fields %}error-input{% endif %}"><br><br>
+
+Department: <input
+type="text"
+name="dept"
+value="{{ form_data.dept if form_data else '' }}"
+class="{% if missing_fields and 'dept' in missing_fields %}error-input{% endif %}"><br><br>
+
+Section: <input
+type="text"
+name="section"
+value="{{ form_data.section if form_data else '' }}"
+class="{% if missing_fields and 'section' in missing_fields %}error-input{% endif %}"><br><br>
+
+Roll No: <input
+type="text"
+name="roll_no"
+value="{{ form_data.roll_no if form_data else '' }}"
+class="{% if missing_fields and 'roll_no' in missing_fields %}error-input{% endif %}"><br><br>
+
+Phone: <input
+type="text"
+name="phone"
+value="{{ form_data.phone if form_data else '' }}"
+class="{% if missing_fields and 'phone' in missing_fields %}error-input{% endif %}"><br><br>
 
 <button type="submit">Submit Registration</button>
 

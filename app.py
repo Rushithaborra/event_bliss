@@ -1,6 +1,8 @@
+from os import name
+
 from flask import Flask, render_template, request, redirect, session , flash
 from flask_mail import Mail, Message
-from flask import abort
+from flask import abort,url_for
 import mysql.connector
 
 app = Flask(__name__)
@@ -52,7 +54,8 @@ def register():
         name = request.form["name"]
         email = request.form["email"]
         password = request.form["password"]
-
+        if not name or not email or not password:
+            abort(400)
         # 🔍 Check if email already exists
         cursor.execute("SELECT * FROM students WHERE email = %s", (email,))
         existing_user = cursor.fetchone()
@@ -93,8 +96,8 @@ def login():
                 session["user_name"] = user[1]
                 return redirect("/dashboard")
             else:
-                flash("Invalid Student Credentials ❌ .")
-                return redirect("/login?role=student")
+                flash("Invalid email or password ❌ .")
+            return redirect("/login?role=student")
 
         elif role == "admin":
             username = request.form["username"]
@@ -108,39 +111,6 @@ def login():
                 return redirect("/login?role=admin")
 
     return render_template("login.html", role=role)
-
-"""@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        role = request.form["role"]
-
-        if role == "student":
-            email = request.form["email"]
-            password = request.form["password"]
-
-            sql = "SELECT * FROM students WHERE email=%s AND password=%s"
-            cursor.execute(sql, (email, password))
-            user = cursor.fetchone()
-
-            if user:
-                session["user_id"] = user[0]
-                session["user_name"] = user[1]
-                return redirect("/dashboard")
-            else:
-                return "Invalid Student Credentials"
-
-        elif role == "admin":
-            username = request.form["username"]
-            password = request.form["password"]
-
-            if username == "admin" and password == "admin123":
-                session["admin"] = True
-                return redirect("/admin_dashboard")
-            else:
-                return "Invalid Admin Credentials"
-
-    return render_template("login.html")"""
-
 
 # ---------------- DASHBOARD ----------------
 @app.route("/dashboard")
@@ -266,44 +236,105 @@ def create_event():
 
     return render_template("create_event.html")
 
+@app.route("/forgot_password", methods=["GET","POST"])
+def forgot_password():
+
+    if request.method == "POST":
+
+        email = request.form["email"]
+
+        cursor.execute(
+        "SELECT * FROM students WHERE email=%s",
+        (email,)
+        )
+
+        user = cursor.fetchone()
+
+        if user:
+            session["reset_email"] = email
+            return redirect("/reset_password")
+
+        else:
+            flash("Email not found")
+
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset_password", methods=["GET","POST"])
+def reset_password():
+
+    if "reset_email" not in session:
+        return redirect("/login")
+
+    if request.method == "POST":
+
+        password = request.form["password"]
+        confirm_password = request.form["confirm_password"]
+        email = session["reset_email"]
+
+        # 🔹 check if passwords match
+        if password != confirm_password:
+            flash("Passwords do not match ❌")
+            return render_template("reset_password.html")
+
+        cursor.execute("""
+        UPDATE students
+        SET password=%s
+        WHERE email=%s
+        """, (password,email))
+
+        db.commit()
+
+        session.pop("reset_email", None)
+
+        flash("Password updated successfully 💖")
+
+        return redirect(url_for("student_login"))
+
+    return render_template("reset_password.html")
+
 
 @app.route("/events")
 def events():
+
     if "user_id" not in session:
         return redirect("/student_login")
 
-    student_id = session["user_id"]
+    user_id = session["user_id"]
 
-    # Get all events with seats remaining
-    sql = """
-    SELECT e.event_id, e.event_name, e.event_date, e.venue,
-           e.max_seats - COUNT(r.event_id) AS seats_remaining
-    FROM events e
-    LEFT JOIN registrations r ON e.event_id = r.event_id
-    GROUP BY e.event_id
-    """
-
-    cursor.execute(sql)
-    all_events = cursor.fetchall()
-
-    # 🔥 Get events already registered by this student
+    # Get all events + number of registrations
     cursor.execute("""
-        SELECT event_id FROM registrations
-        WHERE student_id = %s
-    """, (student_id,))
+        SELECT 
+            events.event_id,
+            events.event_name,
+            events.event_date,
+            events.venue,
+            events.max_seats,
+            COUNT(registrations.event_id) AS registered
+        FROM events
+        LEFT JOIN registrations
+        ON events.event_id = registrations.event_id
+        GROUP BY events.event_id
+    """)
+
+    events = cursor.fetchall()
+
+    # Get events already registered by this student
+    cursor.execute(
+        "SELECT event_id FROM registrations WHERE student_id=%s",
+        (user_id,)
+    )
 
     registered = cursor.fetchall()
 
-    # Convert to simple list
-    registered_event_ids = [r[0] for r in registered]
+    registered_events = [r[0] for r in registered]
 
     return render_template(
         "events.html",
-        events=all_events,
-        registered_event_ids=registered_event_ids
+        events=events,
+        registered_events=registered_events
     )
-
-
+    
 
 @app.route("/delete_event/<int:event_id>")
 def delete_event(event_id):
@@ -346,46 +377,95 @@ def edit_event(event_id):
 
 @app.route("/register_event/<int:event_id>", methods=["GET", "POST"])
 def register_event(event_id):
+
     if "user_id" not in session:
         return redirect("/student_login")
 
     student_id = session["user_id"]
 
-    # 🔹 Check if already registered FIRST
-    cursor.execute("""
-        SELECT * FROM registrations
-        WHERE student_id=%s AND event_id=%s
-    """, (student_id, event_id))
-
-    existing = cursor.fetchone()
-
-    if existing:
-        """return "You have already registered for this event!"""
-        abort(409)
-
-    # 🔹 Get event details
+    # Get event details
     cursor.execute("SELECT * FROM events WHERE event_id=%s", (event_id,))
     event = cursor.fetchone()
 
     if request.method == "POST":
 
-        first_name = request.form["first_name"]
-        middle_name = request.form["middle_name"]
-        last_name = request.form["last_name"]
-        year = request.form["year"]
-        dept = request.form["dept"]
-        section = request.form["section"]
-        roll_no = request.form["roll_no"]
-        phone = request.form["phone"]
+        first_name = request.form.get("first_name")
+        middle_name = request.form.get("middle_name")
+        last_name = request.form.get("last_name")
+        year = request.form.get("year")
+        dept = request.form.get("dept")
+        section = request.form.get("section")
+        roll_no = request.form.get("roll_no")
+        phone = request.form.get("phone")
 
+        missing_fields = []
+
+        if not first_name:
+            missing_fields.append("first_name")
+
+        if not last_name:
+            missing_fields.append("last_name")
+
+        if not year:
+            missing_fields.append("year")
+
+        if not dept:
+            missing_fields.append("dept")
+
+        if not section:
+            missing_fields.append("section")
+
+        if not roll_no:
+            missing_fields.append("roll_no")
+
+        if not phone:
+            missing_fields.append("phone")
+
+        if missing_fields:
+            flash("⚠ Please fill all required fields")
+
+            return render_template(
+            "event_registration_form.html",
+            event=event,
+            form_data=request.form,
+            missing_fields=missing_fields
+            )
+            return render_template(
+            "event_registration_form.html",
+            event=event,
+            form_data=None,
+            missing_fields=None
+            )
+        # 🔹 2. Check duplicate registration
+        cursor.execute("""
+            SELECT * FROM registrations
+            WHERE student_id=%s AND event_id=%s
+        """, (student_id, event_id))
+
+        existing = cursor.fetchone()
+
+        if existing:
+            abort(409)
+
+        # 🔹 3. Insert only if everything is valid
         sql = """
         INSERT INTO registrations
         (student_id, event_id, first_name, middle_name, last_name, year, dept, section, roll_no, phone)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """
 
-        values = (student_id, event_id, first_name, middle_name, last_name,
-                  year, dept, section, roll_no, phone)
+        values = (
+            student_id,
+            event_id,
+            first_name,
+            middle_name,
+            last_name,
+            year,
+            dept,
+            section,
+            roll_no,
+            phone
+        )
 
         cursor.execute(sql, values)
         db.commit()
@@ -433,7 +513,10 @@ def view_event_registrations(event_id):
 
     return render_template("admin_event.html", students=students)
 
-
+@app.route("/test400")
+def test400():
+    abort(400)
+    
 @app.errorhandler(400)
 def bad_request(e):
     return render_template("errors/400.html"), 400

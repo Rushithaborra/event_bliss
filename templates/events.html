@@ -15,7 +15,7 @@
 
     <div class="nav-links">
         <a href="/dashboard">Home</a>
-        <a href="javascript:history.back()">Back</a>
+        <a href="{{ url_for('dashboard') }}">Back</a>
     </div>
 </div>
 
@@ -35,18 +35,28 @@
 
     <div class="event-info">📅 {{ event[2] }}</div>
     <div class="event-info">📍 {{ event[3] }}</div>
-    <div class="event-info seats">🎟 Seats Left: 
-        <span class="seat-count">{{ event[4] }}</span>
+    <div class="event-info seats">🎟 Seats Left:
+        <span class="seat-count">{{ event[4] - event[5] }}</span>
     </div>
+    <td>
+        {{ event[5] }} / {{ event[4] }}
+
+        <div class="seat-bar">
+            <div class="seat-fill"
+                style="width: {{ (event[5] / event[4]) * 100 }}%;">
+            </div>
+        </div>
+
+    </td>   
 
     <br>
 
-    {% if event[0] in registered_event_ids %}
+    {% if event[0] in registered_events %}
         <span class="status-pill status-registered">
             <button disabled>Registered 💖</button>
         </span>
 
-    {% elif event[4] > 0 %}
+    {% elif event[4] - event[5] > 0 %}
         <a href="/register_event/{{ event[0] }}" class="button">
             Register 🌸</button>
         </a>
@@ -63,6 +73,8 @@
 </div>
 
 </div>
+
+        
 
 </body>
 </html>
