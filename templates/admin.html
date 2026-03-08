@@ -1,24 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Admin Login</title>
+    <title>Admin Login — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h2>Admin Login</h2>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
 
-    <form method="POST">
-        <label>Username:</label><br>
-        <input type="text" name="username" required><br><br>
+<div class="center-wrapper">
+    <div class="glass-card large-card">
+        <h2 style="font-size:26px; margin-bottom:6px; color:#7c3aed;">🔐 Admin Login</h2>
+        <p class="subtitle" style="font-size:13px; color:#a78bca; margin-bottom:22px;">Access the admin dashboard</p>
 
-        <label>Password:</label><br>
-        <input type="password" name="password" required><br><br>
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
 
-        <button type="submit">Login</button>
-    </form>
+        <form method="POST">
+            <label>Username</label>
+            <input type="text" name="username" placeholder="Admin username" required>
 
-    <br>
-    <a href="/">Back to Home</a>
+            <label>Password</label>
+            <input type="password" name="password" placeholder="Admin password" required>
+
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Login →</button>
+        </form>
+
+        <div style="text-align:center; margin-top:18px;">
+            <a href="/" class="btn-back">← Back to Home</a>
+        </div>
+    </div>
+</div>
 </body>
 </html>

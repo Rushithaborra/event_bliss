@@ -395,6 +395,7 @@ button:hover, a.button:hover {
 .subtitle {
     margin: 15px 0 30px 0;
     opacity: 0.7;
+    white-space: nowrap;
 }
 
 /* BUTTON GROUP */
@@ -623,18 +624,33 @@ button:hover, a.button:hover {
     box-shadow:0 4px 15px rgba(0,0,0,0.1);
 }
 
-h1{
+.error-container h1{
     font-size:80px;
     color:#6a5acd;
     margin:0;
 }
 
-h2{
+.error-container h2{
     margin:10px 0;
 }
 
-p{
+.error-container p{
     color:#555;
+}
+
+.glass-card h1 {
+    font-size: 38px;
+    margin-top: 0;
+    white-space: nowrap;
+}
+
+.glass-card .subtitle {
+    font-size: 17px;
+    white-space: nowrap;
+}
+
+.primary-btn, .secondary-btn {
+    font-size: 15px;
 }
 
 .btn-home{
@@ -816,4 +832,23 @@ background:#ffafcc;
 border:none;
 padding:10px 20px;
 border-radius:20px;
+}
+.back-btn {
+    display: inline-block;
+    margin-top: 20px;
+    margin-left: 40px;
+    padding: 10px 22px;
+    background: linear-gradient(135deg, #f4b6ff, #e08bff);
+    color: white;
+    text-decoration: none;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+    background: linear-gradient(135deg, #f0a7da, #eb9ee4);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.15);
 }

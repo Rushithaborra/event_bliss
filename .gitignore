@@ -32,3 +32,9 @@ instance/
 
 # Logs
 *.log
+
+# Screenshots and downloaded HTML files
+*.png
+*.jpg
+*.jpeg
+APIs & Services*

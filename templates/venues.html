@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Venues</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container">
+    <h2>🏛 Manage Venues</h2>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="success-popup">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Add Venue Form -->
+    <div class="card">
+        <h3>Add New Venue</h3>
+        <form method="POST" action="/add_venue">
+            <label>Venue Name:</label>
+            <input type="text" name="venue_name" required>
+
+            <label>Location:</label>
+            <input type="text" name="location">
+
+            <label>Capacity:</label>
+            <input type="number" name="capacity">
+
+            <button type="submit">Add Venue</button>
+        </form>
+    </div>
+
+    <!-- Existing Venues -->
+    <div class="card">
+        <h3>All Venues</h3>
+        <table>
+            <tr>
+                <th>Venue Name</th>
+                <th>Location</th>
+                <th>Capacity</th>
+                <th>Action</th>
+            </tr>
+            {% for v in venues %}
+            <tr>
+                <td>{{ v[1] }}</td>
+                <td>{{ v[2] or '—' }}</td>
+                <td>{{ v[3] or '—' }}</td>
+                <td><a href="/delete_venue/{{ v[0] }}">Delete</a></td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="card-top">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
+</div>
+</body>
+</html>

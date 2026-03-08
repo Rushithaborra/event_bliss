@@ -3,7 +3,8 @@
 <head>
     <title>Create Event</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">   
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
 <body>
     <h2>Create New Event</h2>
 
@@ -18,7 +19,15 @@
         <input type="time" name="event_time" required><br><br>
 
         <label>Venue:</label><br>
-        <input type="text" name="venue" required><br><br>
+        <select name="venue_id" required style="width:100%; padding:10px; border-radius:12px; border:1px solid #E8A0BF; margin-bottom:15px;">
+            <option value="">-- Select Venue --</option>
+            {% for v in venues %}
+            <option value="{{ v[0] }}">{{ v[1] }} — {{ v[2] }} (Capacity: {{ v[3] }})</option>
+            {% endfor %}
+        </select><br>
+
+        <label>Organiser:</label><br>
+        <input type="text" name="organiser" placeholder="Name of the organiser" required><br><br>
 
         <label>Max Seats:</label><br>
         <input type="number" name="max_seats" required><br><br>
@@ -30,15 +39,11 @@
         <textarea name="requirements"></textarea><br><br>
 
         <button type="submit">Create Event</button>
-        
-
     </form>
 
     <br>
     <div class="card-top">
-        <a href="{{ url_for('admin_dashboard') }}" class="btn-back">
-            ← Back to Dashboard
-    </a>
-</div>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
 </body>
 </html>

@@ -6,27 +6,34 @@
 <div class="dashboard-container">
 
     <h1 class="dashboard-title">✨ Admin Control Panel ✨</h1>
+
     <div class="stats-container">
-
-    <div class="stat-card">
-        <h3>🎟</h3>
-        <p>{{ total_events }}</p>
-        <span>Total Events</span>
+        <div class="stat-card">
+            <h3>🎟</h3>
+            <p>{{ total_events }}</p>
+            <span>Total Events</span>
+        </div>
+        <div class="stat-card">
+            <h3>👩‍🎓</h3>
+            <p>{{ total_students }}</p>
+            <span>Total Students</span>
+        </div>
+        <div class="stat-card">
+            <h3>📝</h3>
+            <p>{{ total_registrations }}</p>
+            <span>Registrations</span>
+        </div>
+        <div class="stat-card">
+            <h3>🏛</h3>
+            <p>{{ total_venues }}</p>
+            <span>Venues</span>
+        </div>
+        <div class="stat-card">
+            <h3>💌</h3>
+            <p>{{ total_rsvps }}</p>
+            <span>RSVPs</span>
+        </div>
     </div>
-
-    <div class="stat-card">
-        <h3>👩‍🎓</h3>
-        <p>{{ total_students }}</p>
-        <span>Total Students</span>
-    </div>
-
-    <div class="stat-card">
-        <h3>📝</h3>
-        <p>{{ total_registrations }}</p>
-        <span>Total Registrations</span>
-    </div>
-
-</div>
 
     <div class="dashboard-cards">
 
@@ -36,10 +43,24 @@
             <div class="card-desc">Manage & see all events</div>
         </a>
 
+        {% if perms.can_create_event %}
         <a href="/create_event" class="dashboard-card">
             <div class="card-icon">➕</div>
             <div class="card-title">Create Event</div>
             <div class="card-desc">Add a new dreamy event</div>
+        </a>
+        {% endif %}
+
+        <a href="/venues" class="dashboard-card">
+            <div class="card-icon">🏛</div>
+            <div class="card-title">Venues</div>
+            <div class="card-desc">Manage event venues</div>
+        </a>
+
+        <a href="/permissions" class="dashboard-card">
+            <div class="card-icon">🔑</div>
+            <div class="card-title">Permissions</div>
+            <div class="card-desc">Manage admin access</div>
         </a>
 
         <a href="/logout" class="dashboard-card logout-card">

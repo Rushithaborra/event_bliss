@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Event Created</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .success-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+            box-sizing: border-box;
+        }
+
+        .success-card {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(16px);
+            border-radius: 30px;
+            padding: 60px 50px;
+            text-align: center;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.85) translateY(20px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .success-icon {
+            font-size: 72px;
+            margin-bottom: 20px;
+            display: block;
+            animation: bounceIcon 0.7s 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+
+        @keyframes bounceIcon {
+            from { opacity: 0; transform: scale(0.4); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        .success-title {
+            font-size: 26px;
+            font-weight: 600;
+            color: #6d5b8c;
+            margin: 0 0 12px;
+        }
+
+        .success-subtitle {
+            font-size: 15px;
+            color: #8d6a9f;
+            opacity: 0.85;
+            margin: 0 0 40px;
+            line-height: 1.6;
+        }
+
+        .btn-back-dashboard {
+            display: inline-block;
+            padding: 14px 32px;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #f8cdda, #cbb4f4);
+            color: #5f4b8b;
+            font-weight: 600;
+            font-size: 15px;
+            text-decoration: none;
+            transition: 0.3s ease;
+            box-shadow: 0 8px 20px rgba(203, 180, 244, 0.4);
+        }
+
+        .btn-back-dashboard:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 14px 30px rgba(203, 180, 244, 0.55);
+        }
+
+        .divider {
+            margin: 28px auto;
+            width: 60px;
+            height: 3px;
+            border-radius: 10px;
+            background: linear-gradient(90deg, #f8cdda, #cbb4f4);
+        }
+    </style>
+</head>
+<body>
+    <!-- Background blobs from existing style -->
+    <div class="bg-blob blob1"></div>
+    <div class="bg-blob blob2"></div>
+    <div class="bg-blob blob3"></div>
+
+    <div class="success-container">
+        <div class="success-card">
+            <span class="success-icon">🎉</span>
+            <h1 class="success-title">Event Created Successfully!</h1>
+            <div class="divider"></div>
+            <p class="success-subtitle">
+                Your new event has been added and is ready to go.<br>
+                Head back to the dashboard to manage your events.
+            </p>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn-back-dashboard">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+</body>
+</html>

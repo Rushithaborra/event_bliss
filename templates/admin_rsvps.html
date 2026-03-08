@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RSVPs — {{ event[0] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container">
+    <h2>💌 RSVPs for {{ event[0] }}</h2>
+
+    <div class="card">
+        {% if rsvps %}
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Submitted</th>
+            </tr>
+            {% for r in rsvps %}
+            <tr>
+                <td>{{ r[0] }}</td>
+                <td>{{ r[1] }}</td>
+                <td>{{ r[2] or '—' }}</td>
+                <td>
+                    {% if r[3] == 'attending' %}
+                        <span class="status-open">✅ Attending</span>
+                    {% else %}
+                        <span class="status-full">❌ Not Attending</span>
+                    {% endif %}
+                </td>
+                <td>{{ r[4] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p style="text-align:center; opacity:0.6;">No RSVPs yet for this event.</p>
+        {% endif %}
+    </div>
+
+    <div class="card-top">
+        <a href="/admin_events" class="btn-back">← Back to Events</a>
+    </div>
+</div>
+</body>
+</html>

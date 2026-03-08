@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Permissions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .perm-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin: 18px 0 24px;
+        }
+
+        .perm-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.7);
+            border: 1.5px solid #e8d5ff;
+            border-radius: 16px;
+            padding: 14px 18px;
+            cursor: pointer;
+            transition: 0.25s ease;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6d5b8c;
+        }
+
+        .perm-toggle:hover {
+            background: #f8f0ff;
+            border-color: #cbb4f4;
+            transform: translateY(-2px);
+        }
+
+        .perm-toggle input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #c084fc;
+            cursor: pointer;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        .perm-icon {
+            font-size: 18px;
+        }
+
+        .form-card {
+            background: rgba(255,255,255,0.65);
+            backdrop-filter: blur(14px);
+            border-radius: 24px;
+            padding: 35px 40px;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.07);
+            margin-bottom: 28px;
+        }
+
+        .form-card h3 {
+            font-size: 18px;
+            color: #6d5b8c;
+            margin: 0 0 20px;
+            text-align: left;
+        }
+
+        .form-card label:not(.perm-toggle) {
+            font-size: 13px;
+            font-weight: 500;
+            color: #8d6a9f;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .form-card input[type="text"] {
+            margin-bottom: 4px;
+        }
+
+        .perms-table-wrap {
+            background: rgba(255,255,255,0.65);
+            backdrop-filter: blur(14px);
+            border-radius: 24px;
+            padding: 35px 40px;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.07);
+            margin-bottom: 28px;
+        }
+
+        .perms-table-wrap h3 {
+            font-size: 18px;
+            color: #6d5b8c;
+            margin: 0 0 20px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container">
+    <h2>🔑 Admin Permissions</h2>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="success-popup">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Set Permissions Form -->
+    <div class="form-card">
+        <h3>Set Permissions for an Admin</h3>
+        <form method="POST">
+            <label>Admin Username</label>
+            <input type="text" name="admin_username" placeholder="e.g. admin" required>
+
+            <div class="perm-grid">
+                <label class="perm-toggle">
+                    <input type="checkbox" name="can_create_event" checked>
+                    <span class="perm-icon">➕</span> Can Create Events
+                </label>
+                <label class="perm-toggle">
+                    <input type="checkbox" name="can_delete_event" checked>
+                    <span class="perm-icon">🗑</span> Can Delete Events
+                </label>
+                <label class="perm-toggle">
+                    <input type="checkbox" name="can_edit_event" checked>
+                    <span class="perm-icon">✏️</span> Can Edit Events
+                </label>
+                <label class="perm-toggle">
+                    <input type="checkbox" name="can_view_registrations" checked>
+                    <span class="perm-icon">👁</span> Can View Registrations
+                </label>
+            </div>
+
+            <button type="submit">Save Permissions</button>
+        </form>
+    </div>
+
+    <!-- Current Permissions Table -->
+    <div class="perms-table-wrap">
+        <h3>Current Permissions</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Admin</th>
+                    <th>Create</th>
+                    <th>Delete</th>
+                    <th>Edit</th>
+                    <th>View Registrations</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in all_perms %}
+                <tr>
+                    <td><strong>{{ p[1] }}</strong></td>
+                    <td>{{ '✅' if p[2] else '❌' }}</td>
+                    <td>{{ '✅' if p[3] else '❌' }}</td>
+                    <td>{{ '✅' if p[4] else '❌' }}</td>
+                    <td>{{ '✅' if p[5] else '❌' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-top">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
+</div>
+</body>
+</html>

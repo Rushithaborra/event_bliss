@@ -1,32 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Register</title>
+    <title>Register — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h2>Student Registration</h2>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
 
-    {% if error %}
+<div class="center-wrapper">
+    <div class="glass-card large-card">
+        <h2 style="font-size:26px; margin-bottom:6px; color:#7c3aed;">✨ Create Account</h2>
+        <p class="subtitle" style="font-size:13px; color:#a78bca; margin-bottom:22px;">Join Event Bliss as a student</p>
+
+        {% if error %}
         <div class="error-msg">{{ error }}</div>
-    {% endif %}
-    <form method="POST">
-        <label>Name:</label><br>
-        <input type="text" name="name" required><br><br>
+        {% endif %}
 
-        <label>Email:</label><br>
-        <input type="email" name="email" required><br><br>
+        <form method="POST">
+            <label>Name</label>
+            <input type="text" name="name" placeholder="Your full name" required>
 
-        <label>Password:</label><br>
-        <input type="password" name="password" required><br><br>
+            <label>Email</label>
+            <input type="email" name="email" placeholder="you@example.com" required>
 
-        <button type="submit">Register</button>
-    </form>
+            <label>Password</label>
+            <input type="password" name="password" placeholder="Create a password" required>
 
-    <br>
-    <div style="text-align:center;">
-        <a href="/" class="back-btn">← Back to Home</a>
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Register 🎉</button>
+        </form>
+
+        <div style="text-align:center; margin-top:18px;">
+            <a href="/" class="btn-back">← Back to Home</a>
+        </div>
     </div>
+</div>
 </body>
 </html>

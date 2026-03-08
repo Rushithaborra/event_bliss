@@ -1,39 +1,46 @@
 <head>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-</head> 
-
+</head>
 
 <div class="container">
 
-<h2>💌All Events</h2>
+<h2>💌 All Events</h2>
 
 <div class="card">
-
 <table>
     <tr>
-    <th>Event Name</th>
-    <th>Date</th>
-    <th>Venue</th>
-    <th>Seats</th>
-    <th>Action</th>
-</tr>
+        <th>Event Name</th>
+        <th>Date</th>
+        <th>Venue</th>
+        <th>Organiser</th>
+        <th>Seats</th>
+        <th>Actions</th>
+    </tr>
 
-{% for event in events %}
-<tr>
-    <td>{{ event[1] }}</td>
-    <td>{{ event[2] }}</td>
-    <td>{{ event[3] }}</td>
-    <td>{{ event[4] }}</td>
-    <td>
-        <a href="/admin/event/{{ event[0] }}">View Registrations</a> | 
-        <a href="/edit_event/{{ event[0] }}">Edit</a> |
-        <a href="/delete_event/{{ event[0] }}">Delete</a>
-    </td>
-</tr>
-{% endfor %}
+    {% for event in events %}
+    <tr>
+        <td>{{ event[1] }}</td>
+        <td>{{ event[2] }}</td>
+        <td>{{ event[3] }}</td>
+        <td>{{ event[5] or '—' }}</td>
+        <td>{{ event[4] }}</td>
+        <td>
+            {% if perms.can_view_registrations %}
+                <a href="/admin/event/{{ event[0] }}">Registrations</a> |
+                <a href="/admin/event/{{ event[0] }}/rsvps">RSVPs</a>
+            {% endif %}
+            {% if perms.can_edit_event %}
+                | <a href="/edit_event/{{ event[0] }}">Edit</a>
+            {% endif %}
+            {% if perms.can_delete_event %}
+                | <a href="/delete_event/{{ event[0] }}">Delete</a>
+            {% endif %}
+            | <a href="/rsvp/{{ event[0] }}" target="_blank">RSVP Link</a>
+        </td>
+    </tr>
+    {% endfor %}
 </table>
-
 </div>
 </div>
 
