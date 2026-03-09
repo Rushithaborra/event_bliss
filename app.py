@@ -7,10 +7,21 @@ import jwt
 import datetime
 import os
 
-load_dotenv()
+load_dotenv(override=True)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback_secret")
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+
+# ─── MAIL CONFIG ───────────────────────────────────────────────────────────────
+app.config["MAIL_SERVER"]   = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
+app.config["MAIL_PORT"]     = int(os.environ.get("MAIL_PORT", 587))
+app.config["MAIL_USE_TLS"]  = True
+app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
+app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
+app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_USERNAME")
+mail = Mail(app)
 
 # ─── JWT CONFIG ───────────────────────────────────────────────────────────────
 JWT_SECRET    = os.environ.get("JWT_SECRET", "fallback_jwt_secret")
@@ -38,6 +49,23 @@ db = mysql.connector.connect(
     database=os.environ.get("DB_NAME", "event_management")
 )
 cursor = db.cursor()
+
+# ─── CREATE TABLES IF MISSING ─────────────────────────────────────────────────
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS admins (
+        admin_id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        email    VARCHAR(200) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL
+    )
+""")
+cursor.execute("SELECT COUNT(*) FROM admins")
+if cursor.fetchone()[0] == 0:
+    cursor.execute(
+        "INSERT INTO admins (username, email, password) VALUES (%s, %s, %s)",
+        ("admin", "rushi.borra07@gmail.com", "admin123"),
+    )
+db.commit()
 
 # ─── JWT HELPERS ──────────────────────────────────────────────────────────────
 def create_jwt(data: dict) -> str:
@@ -160,16 +188,45 @@ def google_callback():
     if not user:
         cursor.execute(
             "INSERT INTO students (name, email, password) VALUES (%s, %s, %s)",
-            (name, email, "GOOGLE_OAUTH"),   # no password needed for OAuth users
+            (name, email, "GOOGLE_OAUTH"),
         )
         db.commit()
         cursor.execute("SELECT * FROM students WHERE email=%s", (email,))
         user = cursor.fetchone()
 
-    response = make_response(redirect("/dashboard"))
-    set_jwt_cookie(response, {
+    # Send email verification before granting access
+    verify_token = create_jwt({
+        "purpose":   "google_verify",
         "user_id":   user[0],
         "user_name": user[1],
+        "email":     email,
+    })
+    verify_link = url_for("verify_google_login", token=verify_token, _external=True)
+    msg = Message("Verify Your Login — Event Bliss", recipients=[email])
+    msg.body = (
+        f"Hi {name},\n\n"
+        f"You just signed in with Google to Event Bliss.\n\n"
+        f"Click the link below to complete your login (valid for {JWT_EXPIRY_HOURS} hour(s)):\n"
+        f"{verify_link}\n\n"
+        f"If you did not attempt to log in, ignore this email.\n\n"
+        f"— Event Bliss Team"
+    )
+    mail.send(msg)
+    flash(f"A verification link has been sent to {email}. Please check your inbox. 📧")
+    return redirect("/student_login")
+
+
+@app.route("/verify_google_login/<token>")
+def verify_google_login(token):
+    payload = verify_jwt(token)
+    if not payload or payload.get("purpose") != "google_verify":
+        flash("Invalid or expired verification link ❌")
+        return redirect("/student_login")
+
+    response = make_response(redirect("/dashboard"))
+    set_jwt_cookie(response, {
+        "user_id":   payload["user_id"],
+        "user_name": payload["user_name"],
         "role":      "student",
     })
     return response
@@ -182,9 +239,12 @@ def admin():
         username = request.form["username"]
         password = request.form["password"]
 
-        if username == "admin" and password == "admin123":
+        cursor.execute("SELECT * FROM admins WHERE username=%s AND password=%s", (username, password))
+        admin_user = cursor.fetchone()
+
+        if admin_user:
             response = make_response(redirect("/admin_dashboard"))
-            set_jwt_cookie(response, {"role": "admin"})
+            set_jwt_cookie(response, {"role": "admin", "admin_id": admin_user[0], "admin_username": admin_user[1]})
             return response
         else:
             flash("Invalid Admin Credentials ❌")
@@ -468,7 +528,7 @@ def view_event_registrations(event_id):
         return redirect("/admin_login")
 
     cursor.execute("""
-        SELECT students.name, students.email, registrations.registration_date
+        SELECT students.name, students.email, registrations.dept, registrations.registration_date
         FROM registrations
         JOIN students ON registrations.student_id = students.student_id
         WHERE registrations.event_id = %s
@@ -508,6 +568,29 @@ def add_venue():
     return redirect("/venues")
 
 
+@app.route("/edit_venue/<int:venue_id>", methods=["GET", "POST"])
+def edit_venue(venue_id):
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return redirect("/admin_login")
+
+    if request.method == "POST":
+        venue_name = request.form["venue_name"]
+        location   = request.form["location"]
+        capacity   = request.form["capacity"]
+        cursor.execute(
+            "UPDATE venues SET venue_name=%s, location=%s, capacity=%s WHERE venue_id=%s",
+            (venue_name, location, capacity, venue_id),
+        )
+        db.commit()
+        flash("Venue updated successfully 💖")
+        return redirect("/venues")
+
+    cursor.execute("SELECT * FROM venues WHERE venue_id=%s", (venue_id,))
+    venue = cursor.fetchone()
+    return render_template("edit_venue_form.html", venue=venue)
+
+
 @app.route("/delete_venue/<int:venue_id>")
 def delete_venue(venue_id):
     user = get_current_user()
@@ -528,12 +611,42 @@ def permissions():
         return redirect("/admin_login")
 
     if request.method == "POST":
-        admin_username        = request.form["admin_username"]
-        can_create_event      = "can_create_event"      in request.form
-        can_delete_event      = "can_delete_event"      in request.form
-        can_edit_event        = "can_edit_event"        in request.form
+        admin_username         = request.form["admin_username"].strip()
+        admin_email            = request.form.get("admin_email", "").strip()
+        admin_password         = request.form.get("admin_password", "").strip()
+        can_create_event       = "can_create_event"       in request.form
+        can_delete_event       = "can_delete_event"       in request.form
+        can_edit_event         = "can_edit_event"         in request.form
         can_view_registrations = "can_view_registrations" in request.form
 
+        # Register admin account if email + password provided and not already in admins table
+        if admin_email and admin_password:
+            cursor.execute("SELECT admin_id FROM admins WHERE username=%s OR email=%s", (admin_username, admin_email))
+            existing = cursor.fetchone()
+            if not existing:
+                cursor.execute(
+                    "INSERT INTO admins (username, email, password) VALUES (%s, %s, %s)",
+                    (admin_username, admin_email, admin_password),
+                )
+                db.commit()
+                # Send credentials via email
+                msg = Message("Your Admin Account — Event Bliss", recipients=[admin_email])
+                msg.body = (
+                    f"Hi {admin_username},\n\n"
+                    f"You have been registered as an admin on Event Bliss.\n\n"
+                    f"Your login credentials:\n"
+                    f"  Username : {admin_username}\n"
+                    f"  Password : {admin_password}\n\n"
+                    f"Login at: http://127.0.0.1:5000/admin_login\n\n"
+                    f"Please change your password after first login.\n\n"
+                    f"— Event Bliss Team"
+                )
+                mail.send(msg)
+                flash(f"Admin '{admin_username}' registered and credentials sent to {admin_email} 📧")
+            else:
+                flash(f"Admin '{admin_username}' already exists — permissions updated.")
+
+        # Save / update permissions
         cursor.execute("""
             INSERT INTO permissions (admin_username, can_create_event, can_delete_event, can_edit_event, can_view_registrations)
             VALUES (%s, %s, %s, %s, %s)
@@ -543,12 +656,25 @@ def permissions():
         """, (admin_username, can_create_event, can_delete_event, can_edit_event, can_view_registrations,
               can_create_event, can_delete_event, can_edit_event, can_view_registrations))
         db.commit()
-        flash("Permissions updated 💖")
+        if not admin_email:
+            flash("Permissions updated 💖")
         return redirect("/permissions")
 
     cursor.execute("SELECT * FROM permissions")
     all_perms = cursor.fetchall()
     return render_template("permissions.html", all_perms=all_perms)
+
+
+@app.route("/delete_permission/<admin_username>")
+def delete_permission(admin_username):
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return redirect("/admin_login")
+
+    cursor.execute("DELETE FROM permissions WHERE admin_username=%s", (admin_username,))
+    db.commit()
+    flash(f"Permissions for '{admin_username}' deleted.")
+    return redirect("/permissions")
 
 
 # ─── GUEST RSVPs ──────────────────────────────────────────────────────────────
@@ -605,37 +731,106 @@ def view_rsvps(event_id):
 @app.route("/forgot_password", methods=["GET", "POST"])
 def forgot_password():
     if request.method == "POST":
-        email = request.form["email"]
+        email = request.form["email"].strip()
         cursor.execute("SELECT * FROM students WHERE email=%s", (email,))
-        if cursor.fetchone():
-            session["reset_email"] = email
-            return redirect("/reset_password")
+        student = cursor.fetchone()
+        if student:
+            token = create_jwt({"purpose": "student_reset", "student_id": student[0], "email": email})
+            reset_link = url_for("reset_password", token=token, _external=True)
+            msg = Message("Password Reset — Event Bliss", recipients=[email])
+            msg.body = (
+                f"Hi {student[1]},\n\n"
+                f"You requested a password reset for your Event Bliss account.\n\n"
+                f"Click the link below to reset your password (valid for {JWT_EXPIRY_HOURS} hour(s)):\n"
+                f"{reset_link}\n\n"
+                f"If you did not request this, ignore this email.\n\n"
+                f"— Event Bliss Team"
+            )
+            mail.send(msg)
+            flash("Password reset link sent to your email 📧")
+            return redirect("/forgot_password")
         else:
-            flash("Email not found")
+            flash("No account found with that email ❌")
     return render_template("forgot_password.html")
 
 
-@app.route("/reset_password", methods=["GET", "POST"])
-def reset_password():
-    if "reset_email" not in session:
-        return redirect("/student_login")
+@app.route("/reset_password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    payload = verify_jwt(token)
+    if not payload or payload.get("purpose") != "student_reset":
+        flash("Invalid or expired reset link ❌")
+        return redirect("/forgot_password")
+
+    student_id = payload["student_id"]
 
     if request.method == "POST":
         password         = request.form["password"]
         confirm_password = request.form["confirm_password"]
-        email            = session["reset_email"]
 
         if password != confirm_password:
             flash("Passwords do not match ❌")
-            return render_template("reset_password.html")
+            return render_template("reset_password.html", token=token)
 
-        cursor.execute("UPDATE students SET password=%s WHERE email=%s", (password, email))
+        cursor.execute("UPDATE students SET password=%s WHERE student_id=%s", (password, student_id))
         db.commit()
-        session.pop("reset_email", None)
         flash("Password updated successfully 💖")
         return redirect(url_for("student_login"))
 
-    return render_template("reset_password.html")
+    return render_template("reset_password.html", token=token)
+
+
+# ─── ADMIN FORGOT PASSWORD ────────────────────────────────────────────────────
+@app.route("/admin_forgot_password", methods=["GET", "POST"])
+def admin_forgot_password():
+    if request.method == "POST":
+        email = request.form["email"].strip()
+        cursor.execute("SELECT * FROM admins WHERE email=%s", (email,))
+        admin_user = cursor.fetchone()
+
+        if admin_user:
+            token = create_jwt({"purpose": "admin_reset", "admin_id": admin_user[0], "email": email})
+            reset_link = url_for("admin_reset_password", token=token, _external=True)
+            msg = Message("Admin Password Reset — Event Bliss", recipients=[email])
+            msg.body = (
+                f"Hi {admin_user[1]},\n\n"
+                f"You requested a password reset for your admin account.\n\n"
+                f"Click the link below to reset your password (valid for {JWT_EXPIRY_HOURS} hour(s)):\n"
+                f"{reset_link}\n\n"
+                f"If you did not request this, ignore this email.\n\n"
+                f"— Event Bliss Team"
+            )
+            mail.send(msg)
+            flash("Password reset link sent to your email 📧")
+            return redirect("/admin_forgot_password")
+        else:
+            flash("No admin account found with that email ❌")
+
+    return render_template("admin_forgot_password.html")
+
+
+@app.route("/admin_reset_password/<token>", methods=["GET", "POST"])
+def admin_reset_password(token):
+    payload = verify_jwt(token)
+    if not payload or payload.get("purpose") != "admin_reset":
+        flash("Invalid or expired reset link ❌")
+        return redirect("/admin_forgot_password")
+
+    admin_id = payload["admin_id"]
+
+    if request.method == "POST":
+        password         = request.form["password"]
+        confirm_password = request.form["confirm_password"]
+
+        if password != confirm_password:
+            flash("Passwords do not match ❌")
+            return render_template("admin_reset_password.html", token=token)
+
+        cursor.execute("UPDATE admins SET password=%s WHERE admin_id=%s", (password, admin_id))
+        db.commit()
+        flash("Admin password updated successfully 💖")
+        return redirect("/admin_login")
+
+    return render_template("admin_reset_password.html", token=token)
 
 
 # ─── ERROR HANDLERS ───────────────────────────────────────────────────────────

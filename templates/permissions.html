@@ -107,10 +107,16 @@
 
     <!-- Set Permissions Form -->
     <div class="form-card">
-        <h3>Set Permissions for an Admin</h3>
+        <h3>Register Admin &amp; Set Permissions</h3>
         <form method="POST">
             <label>Admin Username</label>
-            <input type="text" name="admin_username" placeholder="e.g. admin" required>
+            <input type="text" name="admin_username" placeholder="e.g. john_admin" required>
+
+            <label>Admin Email <span style="font-weight:400; color:#b59fd4;">(required for new admin registration)</span></label>
+            <input type="email" name="admin_email" placeholder="admin@example.com">
+
+            <label>Temporary Password <span style="font-weight:400; color:#b59fd4;">(sent to admin via email)</span></label>
+            <input type="password" name="admin_password" placeholder="Set a temporary password">
 
             <div class="perm-grid">
                 <label class="perm-toggle">
@@ -146,6 +152,7 @@
                     <th>Delete</th>
                     <th>Edit</th>
                     <th>View Registrations</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -156,6 +163,14 @@
                     <td>{{ '✅' if p[3] else '❌' }}</td>
                     <td>{{ '✅' if p[4] else '❌' }}</td>
                     <td>{{ '✅' if p[5] else '❌' }}</td>
+                    <td>
+                        <a href="#"
+                           onclick="prefillForm('{{ p[1] }}', {{ 1 if p[2] else 0 }}, {{ 1 if p[3] else 0 }}, {{ 1 if p[4] else 0 }}, {{ 1 if p[5] else 0 }})"
+                           style="margin-right:10px;">✏️ Edit</a>
+                        <a href="/delete_permission/{{ p[1] }}"
+                           onclick="return confirm('Delete permissions for {{ p[1] }}?')"
+                           style="color:#e74c3c;">🗑 Delete</a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -166,5 +181,16 @@
         <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
     </div>
 </div>
+
+<script>
+function prefillForm(username, create, del, edit, view) {
+    document.querySelector('input[name="admin_username"]').value = username;
+    document.querySelector('input[name="can_create_event"]').checked = !!create;
+    document.querySelector('input[name="can_delete_event"]').checked = !!del;
+    document.querySelector('input[name="can_edit_event"]').checked = !!edit;
+    document.querySelector('input[name="can_view_registrations"]').checked = !!view;
+    document.querySelector('.form-card').scrollIntoView({ behavior: 'smooth' });
+}
+</script>
 </body>
 </html>

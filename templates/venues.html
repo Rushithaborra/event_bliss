@@ -51,7 +51,10 @@
                 <td>{{ v[1] }}</td>
                 <td>{{ v[2] or '—' }}</td>
                 <td>{{ v[3] or '—' }}</td>
-                <td><a href="/delete_venue/{{ v[0] }}">Delete</a></td>
+                <td>
+                    <a href="/edit_venue/{{ v[0] }}" style="margin-right:10px;">✏️ Edit</a>
+                    <a href="/delete_venue/{{ v[0] }}" onclick="return confirm('Delete this venue?')" style="color:#e74c3c;">🗑 Delete</a>
+                </td>
             </tr>
             {% endfor %}
         </table>
