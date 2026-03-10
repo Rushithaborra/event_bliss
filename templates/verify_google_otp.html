@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify Google Login — Event Bliss</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .otp-inputs { display:flex; gap:10px; justify-content:center; margin:18px 0; }
+        .otp-inputs input {
+            width:48px; height:54px; text-align:center; font-size:22px; font-weight:600;
+            border:2px solid #c4b5fd; border-radius:10px; outline:none;
+            color:#4c1d95; background:rgba(255,255,255,0.7); transition:border-color 0.2s;
+        }
+        .otp-inputs input:focus { border-color:#7c3aed; }
+    </style>
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="center-wrapper">
+    <div class="glass-card large-card">
+        <h2 style="font-size:26px; margin-bottom:6px; color:#7c3aed;">🔒 Verify Google Login</h2>
+        <p class="subtitle" style="font-size:13px; color:#a78bca; margin-bottom:6px;">
+            We sent a 6-digit OTP to
+        </p>
+        <p style="font-size:14px; font-weight:600; color:#4c1d95; margin-bottom:22px;">{{ email }}</p>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for msg in messages %}
+                    <div class="error-msg">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" id="otpForm">
+            <div class="otp-inputs">
+                <input type="text" maxlength="1" class="otp-box" autofocus>
+                <input type="text" maxlength="1" class="otp-box">
+                <input type="text" maxlength="1" class="otp-box">
+                <input type="text" maxlength="1" class="otp-box">
+                <input type="text" maxlength="1" class="otp-box">
+                <input type="text" maxlength="1" class="otp-box">
+            </div>
+            <input type="hidden" name="otp" id="otpHidden">
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Verify & Login ✅</button>
+        </form>
+
+        <div style="text-align:center; margin-top:14px; font-size:13px; color:#a78bca;">
+            Didn't receive it?
+            <a href="/google_login" style="color:#7c3aed; font-weight:600;">Try Google login again</a>
+        </div>
+        <div style="text-align:center; margin-top:10px;">
+            <a href="/student_login" class="btn-back">← Back to Login</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const boxes = document.querySelectorAll(".otp-box");
+    boxes.forEach((box, i) => {
+        box.addEventListener("input", () => {
+            box.value = box.value.replace(/\D/g, "");
+            if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+        });
+        box.addEventListener("keydown", (e) => {
+            if (e.key === "Backspace" && !box.value && i > 0) boxes[i - 1].focus();
+        });
+        box.addEventListener("paste", (e) => {
+            e.preventDefault();
+            const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+            [...text].forEach((ch, idx) => { if (boxes[idx]) boxes[idx].value = ch; });
+            if (boxes[Math.min(text.length, boxes.length - 1)]) boxes[Math.min(text.length, boxes.length - 1)].focus();
+        });
+    });
+    document.getElementById("otpForm").addEventListener("submit", () => {
+        document.getElementById("otpHidden").value = [...boxes].map(b => b.value).join("");
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Profile — Event Bliss</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+        .avatar-circle {
+            width: 82px;
+            height: 82px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f5b8dc, #c084fc);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+            box-shadow: 0 6px 20px rgba(192, 132, 252, 0.35);
+            letter-spacing: 1px;
+        }
+        .profile-meta h2 {
+            margin: 0 0 4px;
+            font-size: 22px;
+            color: #7c3aed;
+        }
+        .profile-meta p {
+            margin: 0;
+            font-size: 13px;
+            color: #9d82c0;
+        }
+        .stat-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, #fde8f5, #ede0ff);
+            border: 1px solid #cbb4f4;
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 13px;
+            color: #7c3aed;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .profile-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px 24px;
+        }
+        .profile-grid .full-width {
+            grid-column: 1 / -1;
+        }
+        .profile-grid textarea {
+            width: 100%;
+            min-height: 90px;
+            resize: vertical;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+        }
+        .email-locked {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.55);
+            border: 1.5px solid #e8d5ff;
+            border-radius: 14px;
+            padding: 10px 14px;
+            font-size: 14px;
+            color: #9d82c0;
+        }
+        .lock-icon { font-size: 16px; opacity: 0.7; }
+        .section-divider {
+            font-size: 12px;
+            font-weight: 600;
+            color: #b59fd4;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 20px 0 10px;
+        }
+        @media (max-width: 600px) {
+            .profile-grid { grid-template-columns: 1fr; }
+            .profile-header { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container" style="max-width:700px;">
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-message" style="margin-bottom:18px;">
+        {% for msg in messages %}<p style="margin:0;">{{ msg }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Header card -->
+    <div class="card" style="margin-bottom:20px;">
+        <div class="profile-header">
+            <div class="avatar-circle">
+                {{ student.name[:2].upper() if student.name else '??' }}
+            </div>
+            <div class="profile-meta">
+                <h2>{{ student.name }}</h2>
+                <p>{{ student.email }}</p>
+                {% if student.dept or student.year %}
+                <p style="margin-top:4px;">
+                    {% if student.dept %}{{ student.dept }}{% endif %}
+                    {% if student.dept and student.year %} · {% endif %}
+                    {% if student.year %}{{ student.year }}{% endif %}
+                </p>
+                {% endif %}
+                <div class="stat-pill">🎟 {{ event_count }} event{{ 's' if event_count != 1 else '' }} registered</div>
+            </div>
+        </div>
+        {% if student.bio %}
+        <p style="font-size:14px; color:#8d6a9f; margin:0; border-top:1px solid #f0e6ff; padding-top:14px;">
+            {{ student.bio }}
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Edit form -->
+    <div class="card">
+        <p class="form-section-title">Edit Profile</p>
+
+        <form method="POST">
+            <div class="profile-grid">
+
+                <div class="full-width">
+                    <p class="section-divider">Account</p>
+                </div>
+
+                <div class="full-width">
+                    <label>Full Name <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="name" value="{{ student.name or '' }}" placeholder="Your full name" required>
+                </div>
+
+                <div class="full-width">
+                    <label>Email <span style="font-weight:400; font-size:12px; color:#b59fd4;">(cannot be changed)</span></label>
+                    <div class="email-locked">
+                        <span class="lock-icon">🔒</span>
+                        {{ student.email }}
+                    </div>
+                </div>
+
+                <div class="full-width">
+                    <p class="section-divider">Academic Info</p>
+                </div>
+
+                <div>
+                    <label>Roll No</label>
+                    <input type="text" name="roll_no" value="{{ student.roll_no or '' }}" placeholder="e.g. 21CS001">
+                </div>
+                <div>
+                    <label>Year</label>
+                    <input type="text" name="year" value="{{ student.year or '' }}" placeholder="e.g. 2nd Year">
+                </div>
+                <div>
+                    <label>Department</label>
+                    <input type="text" name="dept" value="{{ student.dept or '' }}" placeholder="e.g. CSE">
+                </div>
+                <div>
+                    <label>Section</label>
+                    <input type="text" name="section" value="{{ student.section or '' }}" placeholder="e.g. A">
+                </div>
+
+                <div class="full-width">
+                    <p class="section-divider">Contact</p>
+                </div>
+
+                <div>
+                    <label>Phone</label>
+                    <input type="text" name="phone" value="{{ student.phone or '' }}" placeholder="10-digit number">
+                </div>
+
+                <div class="full-width">
+                    <p class="section-divider">About</p>
+                </div>
+
+                <div class="full-width">
+                    <label>Bio</label>
+                    <textarea name="bio" placeholder="A short intro about yourself...">{{ student.bio or '' }}</textarea>
+                </div>
+
+            </div>
+
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:12px;">
+                Save Changes 💾
+            </button>
+        </form>
+    </div>
+
+    <div class="card-top">
+        <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
+</div>
+</body>
+</html>

@@ -838,8 +838,8 @@ border-radius:20px;
     margin-top: 20px;
     margin-left: 40px;
     padding: 10px 22px;
-    background: linear-gradient(135deg, #f4b6ff, #e08bff);
-    color: white;
+    background: linear-gradient(135deg, #f8cdda, #cbb4f4);
+    color: #5f4b8b;
     text-decoration: none;
     border-radius: 25px;
     font-size: 14px;
@@ -848,7 +848,50 @@ border-radius:20px;
 }
 
 .back-btn:hover {
-    background: linear-gradient(135deg, #f0a7da, #eb9ee4);
     transform: translateY(-2px);
-    box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 14px rgba(203,180,244,0.4);
+}
+
+/* ─── Small action pills for tables ─── */
+.btn-action {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: 0.2s ease;
+    background: linear-gradient(135deg, #f8cdda, #cbb4f4);
+    color: #5f4b8b;
+    white-space: nowrap;
+}
+.btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(203,180,244,0.4);
+}
+.btn-action-danger {
+    background: linear-gradient(135deg, #ffd6e0, #f9c0cb);
+    color: #8b2252;
+}
+.btn-action-danger:hover {
+    box-shadow: 0 4px 10px rgba(249,192,203,0.5);
+}
+
+/* ─── Form section label ─── */
+.form-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #7c3aed;
+    margin: 0 0 16px;
+}
+
+/* ─── Registration form grid ─── */
+.reg-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 24px;
+}
+
+@media (max-width: 600px) {
+    .reg-grid { grid-template-columns: 1fr; }
 }

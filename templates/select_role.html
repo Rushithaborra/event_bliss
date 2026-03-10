@@ -1,33 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Select Role</title>
+    <title>Select Role — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-<div class="center-wrapper">
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
 
+<div class="center-wrapper">
     <div class="glass-card">
         <h2>✨ Select Login Type ✨</h2>
 
         <div class="role-buttons">
-
-            <a href="/login?role=student" class="role-card">
-                🎓 Student Login
-            </a>
-
-            <a href="/login?role=admin" class="role-card">
-                👑 Admin Login
-            </a>
-
+            <a href="/student_login" class="role-card">🎓 Student Login</a>
+            <a href="/admin_login" class="role-card">👑 Admin Login</a>
         </div>
 
         <a href="/" class="back-link">← Back</a>
-
     </div>
-
 </div>
-
 </body>
 </html>

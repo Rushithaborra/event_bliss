@@ -1,18 +1,39 @@
+<!DOCTYPE html>
+<html>
 <head>
+    <title>Edit Event — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
 
+<div class="container" style="max-width:620px;">
+    <div class="card" style="border-radius:24px; padding:36px 40px;">
+        <h2 style="font-size:22px; color:#7c3aed; margin-top:0; margin-bottom:24px;">✏️ Edit Event</h2>
 
-<h2>Edit Event</h2>
+        <form method="POST">
+            <label>Event Name</label>
+            <input type="text" name="event_name" value="{{ event[1] }}" required>
 
-<form method="POST">
-    Event Name: <input type="text" name="event_name" value="{{ event[1] }}"><br><br>
-    Date: <input type="date" name="event_date" value="{{ event[2] }}"><br><br>
-    Venue: <input type="text" name="venue" value="{{ event[3] }}"><br><br>
-    Max Seats: <input type="number" name="max_seats" value="{{ event[4] }}"><br><br>
-    <button type="submit">Update</button>
-</form>
+            <label>Date</label>
+            <input type="date" name="event_date" value="{{ event[2] }}" required>
 
-<br>
-<a href="/admin/events">Back</a>
+            <label>Venue</label>
+            <input type="text" name="venue" value="{{ event[3] or '' }}">
+
+            <label>Max Seats</label>
+            <input type="number" name="max_seats" value="{{ event[4] }}" required>
+
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Save Changes 💖</button>
+        </form>
+
+        <div style="text-align:center; margin-top:18px;">
+            <a href="/admin_events" class="btn-back">← Back to Events</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

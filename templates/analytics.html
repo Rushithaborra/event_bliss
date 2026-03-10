@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Analytics — Event Bliss</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            margin-bottom: 22px;
+        }
+        .analytics-grid.three {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .chart-card {
+            background: rgba(255,255,255,0.68);
+            backdrop-filter: blur(14px);
+            border-radius: 22px;
+            padding: 26px 28px;
+            box-shadow: 0 8px 28px rgba(180,130,220,0.12);
+            border: 1.5px solid #ede0ff;
+        }
+        .chart-card h4 {
+            margin: 0 0 14px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #7c3aed;
+        }
+        /* Wrapper that controls chart height — Chart.js 4 needs this */
+        .chart-wrap {
+            position: relative;
+        }
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+        .kpi-card {
+            background: rgba(255,255,255,0.68);
+            backdrop-filter: blur(14px);
+            border-radius: 20px;
+            padding: 22px 20px;
+            text-align: center;
+            box-shadow: 0 6px 20px rgba(180,130,220,0.11);
+            border: 1.5px solid #ede0ff;
+        }
+        .kpi-icon  { font-size: 28px; margin-bottom: 8px; }
+        .kpi-value {
+            font-size: 30px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #e07aad, #9d5cf5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.1;
+        }
+        .kpi-label { font-size: 12px; color: #b59fd4; margin-top: 4px; font-weight: 500; }
+        .recent-table td, .recent-table th { padding: 10px 14px; text-align: left; }
+        .recent-table th {
+            font-size: 12px; text-transform: uppercase;
+            letter-spacing: 0.7px; color: #b59fd4;
+            border-bottom: 1.5px solid #f0e6ff;
+        }
+        .recent-table td { font-size: 13px; color: #6d5b8c; }
+        .recent-table tr:not(:last-child) td { border-bottom: 1px solid #f8f0ff; }
+        .event-dot {
+            display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f5b8dc, #c084fc);
+            margin-right: 6px;
+        }
+        .no-data {
+            display: flex; align-items: center; justify-content: center;
+            height: 100%; color: #c4a8e0; font-size: 13px; font-style: italic;
+        }
+        @media (max-width: 900px) {
+            .analytics-grid, .analytics-grid.three { grid-template-columns: 1fr; }
+            .kpi-row { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 550px) {
+            .kpi-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container" style="max-width:1100px;">
+    <h2 style="color:#7c3aed; margin-bottom:22px;">📊 Analytics Dashboard</h2>
+
+    <!-- KPI Row -->
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kpi-icon">🎟</div>
+            <div class="kpi-value">{{ total_events }}</div>
+            <div class="kpi-label">Total Events</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">🟢</div>
+            <div class="kpi-value">{{ upcoming }}</div>
+            <div class="kpi-label">Upcoming Events</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">📝</div>
+            <div class="kpi-value" id="kpi-total-regs">—</div>
+            <div class="kpi-label">Total Registrations</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">⭐</div>
+            <div class="kpi-value">{{ avg_regs }}</div>
+            <div class="kpi-label">Avg Regs / Event</div>
+        </div>
+    </div>
+
+    <!-- Monthly trend -->
+    <div style="margin-bottom:22px;">
+        <div class="chart-card">
+            <h4>📈 Registration Trend (Monthly)</h4>
+            <div class="chart-wrap" style="height:200px;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top events + Department -->
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <h4>🏆 Top Events by Registrations</h4>
+            <div class="chart-wrap" style="height:260px;">
+                <canvas id="eventsChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h4>🎓 Department Breakdown</h4>
+            <div class="chart-wrap" style="height:260px;">
+                <canvas id="deptChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Year + Section + Venue -->
+    <div class="analytics-grid three">
+        <div class="chart-card">
+            <h4>📅 Year-wise Students</h4>
+            <div class="chart-wrap" style="height:230px;">
+                <canvas id="yearChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h4>🔤 Section Distribution</h4>
+            <div class="chart-wrap" style="height:230px;">
+                <canvas id="sectionChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h4>🏛 Venue Usage</h4>
+            <div class="chart-wrap" style="height:230px;">
+                <canvas id="venueChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event status + Recent -->
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <h4>🗓 Event Status</h4>
+            <div class="chart-wrap" style="height:240px;">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h4>🕐 Recent Registrations</h4>
+            <table class="recent-table" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th>Student</th><th>Event</th><th>Dept</th><th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in recent_regs %}
+                    <tr>
+                        <td><span class="event-dot"></span>{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                        <td>{{ row[2] or '—' }}</td>
+                        <td style="white-space:nowrap; font-size:12px;">{{ row[3] }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not recent_regs %}
+                    <tr><td colspan="4" style="text-align:center; opacity:0.5; padding:24px;">No registrations yet</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card-top">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
+</div>
+
+<script>
+// ── Data from Flask ───────────────────────────────────────────────────────────
+const topEvents   = {{ top_events   | safe }};
+const deptData    = {{ dept_data    | safe }};
+const yearData    = {{ year_data    | safe }};
+const monthlyData = {{ monthly_data | safe }};
+const venueData   = {{ venue_data   | safe }};
+const sectionData = {{ section_data | safe }};
+const upcoming    = {{ upcoming }};
+const past        = {{ past }};
+
+// KPI
+document.getElementById('kpi-total-regs').textContent =
+    topEvents.reduce((s, r) => s + r[1], 0);
+
+// ── Shared defaults ───────────────────────────────────────────────────────────
+Chart.defaults.font.family = "'Poppins', sans-serif";
+Chart.defaults.font.size   = 12;
+Chart.defaults.color       = '#8d6a9f';
+
+const PASTEL = ['#c084fc','#f5b8dc','#a78bfa','#60a5fa','#34d399',
+                '#fbbf24','#fb923c','#f87171','#e879f9','#818cf8'];
+
+const BASE_OPTS = {
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+};
+
+function gridOpts() {
+    return { color: 'rgba(180,130,220,0.09)' };
+}
+
+function noDataMsg(canvasId, msg) {
+    const wrap = document.getElementById(canvasId).parentElement;
+    wrap.innerHTML = `<div class="no-data">${msg || 'No data yet'}</div>`;
+}
+
+// ── 1. Monthly trend line ─────────────────────────────────────────────────────
+(function() {
+    if (!monthlyData.length) { noDataMsg('trendChart', 'No registration data yet'); return; }
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 180);
+    grad.addColorStop(0, 'rgba(192,132,252,0.30)');
+    grad.addColorStop(1, 'rgba(192,132,252,0.01)');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: monthlyData.map(r => r[0]),
+            datasets: [{
+                label: 'Registrations',
+                data: monthlyData.map(r => r[1]),
+                borderColor: '#9d5cf5',
+                backgroundColor: grad,
+                fill: true,
+                tension: 0.42,
+                pointBackgroundColor: '#f5b8dc',
+                pointBorderColor: '#9d5cf5',
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                borderWidth: 2.5,
+            }]
+        },
+        options: {
+            ...BASE_OPTS,
+            scales: {
+                x: { grid: gridOpts() },
+                y: { grid: gridOpts(), beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+            }
+        }
+    });
+})();
+
+// ── 2. Top events horizontal bar ──────────────────────────────────────────────
+(function() {
+    if (!topEvents.length) { noDataMsg('eventsChart', 'No events yet'); return; }
+    const ctx = document.getElementById('eventsChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: topEvents.map(r => r[0].length > 20 ? r[0].slice(0,20)+'…' : r[0]),
+            datasets: [{
+                label: 'Registrations',
+                data: topEvents.map(r => r[1]),
+                backgroundColor: PASTEL.slice(0, topEvents.length),
+                borderRadius: 8,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            ...BASE_OPTS,
+            indexAxis: 'y',
+            scales: {
+                x: { grid: gridOpts(), beginAtZero: true, ticks: { stepSize: 1, precision: 0 } },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+})();
+
+// ── 3. Department doughnut ────────────────────────────────────────────────────
+(function() {
+    if (!deptData.length) { noDataMsg('deptChart', 'No dept data yet'); return; }
+    const ctx = document.getElementById('deptChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: deptData.map(r => r[0]),
+            datasets: [{
+                data: deptData.map(r => r[1]),
+                backgroundColor: PASTEL.slice(0, deptData.length),
+                borderWidth: 0,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: { display: true, position: 'bottom',
+                          labels: { boxWidth: 12, padding: 12, font: { size: 11 } } }
+            }
+        }
+    });
+})();
+
+// ── 4. Year bar ───────────────────────────────────────────────────────────────
+(function() {
+    if (!yearData.length) { noDataMsg('yearChart', 'No year data yet'); return; }
+    const ctx = document.getElementById('yearChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: yearData.map(r => r[0]),
+            datasets: [{
+                label: 'Students',
+                data: yearData.map(r => r[1]),
+                backgroundColor: PASTEL.slice(0, yearData.length),
+                borderRadius: 8,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            ...BASE_OPTS,
+            scales: {
+                x: { grid: { display: false } },
+                y: { grid: gridOpts(), beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+            }
+        }
+    });
+})();
+
+// ── 5. Section pie ────────────────────────────────────────────────────────────
+(function() {
+    if (!sectionData.length) { noDataMsg('sectionChart', 'No section data yet'); return; }
+    const ctx = document.getElementById('sectionChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: sectionData.map(r => 'Section ' + r[0]),
+            datasets: [{
+                data: sectionData.map(r => r[1]),
+                backgroundColor: PASTEL.slice(0, sectionData.length),
+                borderWidth: 0,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'bottom',
+                          labels: { boxWidth: 12, padding: 12, font: { size: 11 } } }
+            }
+        }
+    });
+})();
+
+// ── 6. Venue bar ──────────────────────────────────────────────────────────────
+(function() {
+    if (!venueData.length) { noDataMsg('venueChart', 'No venue data yet'); return; }
+    const ctx = document.getElementById('venueChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: venueData.map(r => r[0].length > 14 ? r[0].slice(0,14)+'…' : r[0]),
+            datasets: [{
+                label: 'Registrations',
+                data: venueData.map(r => r[1]),
+                backgroundColor: PASTEL.slice(2, 2 + venueData.length),
+                borderRadius: 8,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            ...BASE_OPTS,
+            scales: {
+                x: { grid: { display: false } },
+                y: { grid: gridOpts(), beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+            }
+        }
+    });
+})();
+
+// ── 7. Upcoming vs Past doughnut ──────────────────────────────────────────────
+(function() {
+    if (upcoming + past === 0) { noDataMsg('statusChart', 'No events yet'); return; }
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Upcoming', 'Past'],
+            datasets: [{
+                data: [upcoming, past],
+                backgroundColor: ['#c084fc', '#f5b8dc'],
+                borderWidth: 0,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: { display: true, position: 'bottom',
+                          labels: { boxWidth: 14, padding: 16, font: { size: 13 } } }
+            }
+        }
+    });
+})();
+</script>
+</body>
+</html>

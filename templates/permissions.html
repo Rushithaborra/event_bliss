@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Permissions</title>
+    <title>Permissions — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
@@ -11,7 +11,6 @@
             gap: 14px;
             margin: 18px 0 24px;
         }
-
         .perm-toggle {
             display: flex;
             align-items: center;
@@ -26,13 +25,11 @@
             font-weight: 500;
             color: #6d5b8c;
         }
-
         .perm-toggle:hover {
             background: #f8f0ff;
             border-color: #cbb4f4;
             transform: translateY(-2px);
         }
-
         .perm-toggle input[type="checkbox"] {
             width: 18px;
             height: 18px;
@@ -41,11 +38,6 @@
             margin: 0;
             flex-shrink: 0;
         }
-
-        .perm-icon {
-            font-size: 18px;
-        }
-
         .form-card {
             background: rgba(255,255,255,0.65);
             backdrop-filter: blur(14px);
@@ -54,26 +46,11 @@
             box-shadow: 0 12px 35px rgba(0,0,0,0.07);
             margin-bottom: 28px;
         }
-
         .form-card h3 {
             font-size: 18px;
             color: #6d5b8c;
             margin: 0 0 20px;
-            text-align: left;
         }
-
-        .form-card label:not(.perm-toggle) {
-            font-size: 13px;
-            font-weight: 500;
-            color: #8d6a9f;
-            margin-bottom: 4px;
-            display: block;
-        }
-
-        .form-card input[type="text"] {
-            margin-bottom: 4px;
-        }
-
         .perms-table-wrap {
             background: rgba(255,255,255,0.65);
             backdrop-filter: blur(14px);
@@ -82,12 +59,10 @@
             box-shadow: 0 12px 35px rgba(0,0,0,0.07);
             margin-bottom: 28px;
         }
-
         .perms-table-wrap h3 {
             font-size: 18px;
             color: #6d5b8c;
             margin: 0 0 20px;
-            text-align: left;
         }
     </style>
 </head>
@@ -105,7 +80,6 @@
     {% endif %}
     {% endwith %}
 
-    <!-- Set Permissions Form -->
     <div class="form-card">
         <h3>Register Admin &amp; Set Permissions</h3>
         <form method="POST">
@@ -121,27 +95,26 @@
             <div class="perm-grid">
                 <label class="perm-toggle">
                     <input type="checkbox" name="can_create_event" checked>
-                    <span class="perm-icon">➕</span> Can Create Events
+                    <span>➕</span> Can Create Events
                 </label>
                 <label class="perm-toggle">
                     <input type="checkbox" name="can_delete_event" checked>
-                    <span class="perm-icon">🗑</span> Can Delete Events
+                    <span>🗑</span> Can Delete Events
                 </label>
                 <label class="perm-toggle">
                     <input type="checkbox" name="can_edit_event" checked>
-                    <span class="perm-icon">✏️</span> Can Edit Events
+                    <span>✏️</span> Can Edit Events
                 </label>
                 <label class="perm-toggle">
                     <input type="checkbox" name="can_view_registrations" checked>
-                    <span class="perm-icon">👁</span> Can View Registrations
+                    <span>👁</span> Can View Registrations
                 </label>
             </div>
 
-            <button type="submit">Save Permissions</button>
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:4px;">Save Permissions 🔑</button>
         </form>
     </div>
 
-    <!-- Current Permissions Table -->
     <div class="perms-table-wrap">
         <h3>Current Permissions</h3>
         <table>
@@ -163,13 +136,13 @@
                     <td>{{ '✅' if p[3] else '❌' }}</td>
                     <td>{{ '✅' if p[4] else '❌' }}</td>
                     <td>{{ '✅' if p[5] else '❌' }}</td>
-                    <td>
+                    <td style="display:flex; gap:6px; justify-content:center;">
                         <a href="#"
-                           onclick="prefillForm('{{ p[1] }}', {{ 1 if p[2] else 0 }}, {{ 1 if p[3] else 0 }}, {{ 1 if p[4] else 0 }}, {{ 1 if p[5] else 0 }})"
-                           style="margin-right:10px;">✏️ Edit</a>
+                           class="btn-action"
+                           onclick="prefillForm('{{ p[1] }}',{{ 1 if p[2] else 0 }},{{ 1 if p[3] else 0 }},{{ 1 if p[4] else 0 }},{{ 1 if p[5] else 0 }})">✏️ Edit</a>
                         <a href="/delete_permission/{{ p[1] }}"
-                           onclick="return confirm('Delete permissions for {{ p[1] }}?')"
-                           style="color:#e74c3c;">🗑 Delete</a>
+                           class="btn-action btn-action-danger"
+                           onclick="return confirm('Delete permissions for {{ p[1] }}?')">🗑 Delete</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -185,9 +158,9 @@
 <script>
 function prefillForm(username, create, del, edit, view) {
     document.querySelector('input[name="admin_username"]').value = username;
-    document.querySelector('input[name="can_create_event"]').checked = !!create;
-    document.querySelector('input[name="can_delete_event"]').checked = !!del;
-    document.querySelector('input[name="can_edit_event"]').checked = !!edit;
+    document.querySelector('input[name="can_create_event"]').checked  = !!create;
+    document.querySelector('input[name="can_delete_event"]').checked  = !!del;
+    document.querySelector('input[name="can_edit_event"]').checked    = !!edit;
     document.querySelector('input[name="can_view_registrations"]').checked = !!view;
     document.querySelector('.form-card').scrollIntoView({ behavior: 'smooth' });
 }

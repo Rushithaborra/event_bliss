@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Venues</title>
+    <title>Venues — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
@@ -19,44 +19,48 @@
     {% endif %}
     {% endwith %}
 
-    <!-- Add Venue Form -->
     <div class="card">
-        <h3>Add New Venue</h3>
+        <p class="form-section-title">Add New Venue</p>
         <form method="POST" action="/add_venue">
-            <label>Venue Name:</label>
-            <input type="text" name="venue_name" required>
+            <label>Venue Name</label>
+            <input type="text" name="venue_name" placeholder="e.g. Main Auditorium" required>
 
-            <label>Location:</label>
-            <input type="text" name="location">
+            <label>Location</label>
+            <input type="text" name="location" placeholder="e.g. Block A, 2nd Floor">
 
-            <label>Capacity:</label>
-            <input type="number" name="capacity">
+            <label>Capacity</label>
+            <input type="number" name="capacity" placeholder="e.g. 200">
 
-            <button type="submit">Add Venue</button>
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:4px;">Add Venue 🏛</button>
         </form>
     </div>
 
-    <!-- Existing Venues -->
     <div class="card">
-        <h3>All Venues</h3>
+        <p class="form-section-title">All Venues</p>
         <table>
-            <tr>
-                <th>Venue Name</th>
-                <th>Location</th>
-                <th>Capacity</th>
-                <th>Action</th>
-            </tr>
-            {% for v in venues %}
-            <tr>
-                <td>{{ v[1] }}</td>
-                <td>{{ v[2] or '—' }}</td>
-                <td>{{ v[3] or '—' }}</td>
-                <td>
-                    <a href="/edit_venue/{{ v[0] }}" style="margin-right:10px;">✏️ Edit</a>
-                    <a href="/delete_venue/{{ v[0] }}" onclick="return confirm('Delete this venue?')" style="color:#e74c3c;">🗑 Delete</a>
-                </td>
-            </tr>
-            {% endfor %}
+            <thead>
+                <tr>
+                    <th>Venue Name</th>
+                    <th>Location</th>
+                    <th>Capacity</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in venues %}
+                <tr>
+                    <td>{{ v[1] }}</td>
+                    <td>{{ v[2] or '—' }}</td>
+                    <td>{{ v[3] or '—' }}</td>
+                    <td style="display:flex; gap:8px; justify-content:center;">
+                        <a href="/edit_venue/{{ v[0] }}" class="btn-action">✏️ Edit</a>
+                        <a href="/delete_venue/{{ v[0] }}"
+                           class="btn-action btn-action-danger"
+                           onclick="return confirm('Delete this venue?')">🗑 Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
         </table>
     </div>
 

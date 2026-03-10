@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registration Successful — Event Bliss</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        #confetti-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .success-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+            box-sizing: border-box;
+        }
+
+        .success-card {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(18px);
+            border-radius: 30px;
+            padding: 60px 50px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(124, 58, 237, 0.15);
+            animation: popIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.8) translateY(30px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .success-icon {
+            font-size: 80px;
+            display: block;
+            margin-bottom: 16px;
+            animation: bounceIcon 0.7s 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+
+        @keyframes bounceIcon {
+            from { opacity: 0; transform: scale(0.3) rotate(-15deg); }
+            to   { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+
+        .success-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #6d28d9;
+            margin: 0 0 10px;
+        }
+
+        .event-name-pill {
+            display: inline-block;
+            background: linear-gradient(135deg, #f8cdda, #cbb4f4);
+            color: #5f4b8b;
+            font-weight: 600;
+            font-size: 15px;
+            padding: 6px 20px;
+            border-radius: 50px;
+            margin: 10px 0 20px;
+        }
+
+        .success-subtitle {
+            font-size: 14px;
+            color: #8d6a9f;
+            line-height: 1.7;
+            margin: 0 0 36px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            padding: 13px 28px;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.35);
+            transition: 0.3s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 28px rgba(124, 58, 237, 0.45);
+        }
+
+        .btn-secondary {
+            padding: 13px 28px;
+            border-radius: 25px;
+            background: rgba(255,255,255,0.7);
+            color: #7c3aed;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            border: 2px solid #cbb4f4;
+            transition: 0.3s;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            background: rgba(255,255,255,0.9);
+        }
+
+        .divider {
+            margin: 22px auto;
+            width: 60px;
+            height: 3px;
+            border-radius: 10px;
+            background: linear-gradient(90deg, #f8cdda, #cbb4f4);
+        }
+
+        .checkmark-circle {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 18px;
+            animation: popIn 0.6s 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+        }
+
+        .checkmark {
+            color: white;
+            font-size: 36px;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+<canvas id="confetti-canvas"></canvas>
+
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="success-container">
+    <div class="success-card">
+        <div class="checkmark-circle">
+            <span class="checkmark">✓</span>
+        </div>
+
+        <h1 class="success-title">You're registered!</h1>
+        <div class="event-name-pill">{{ event_name }}</div>
+
+        <div class="divider"></div>
+
+        <p class="success-subtitle">
+            Hey {{ name }}, your spot is confirmed 🎉<br>
+            We'll send you a reminder before the event.<br>
+            Can't wait to see you there!
+        </p>
+
+        <div class="btn-group">
+            <a href="/my_events" class="btn-primary">My Events 🌸</a>
+            <a href="/events" class="btn-secondary">Browse More</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("confetti-canvas");
+    const ctx    = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const COLORS = [
+        "#f8cdda","#cbb4f4","#a78bca","#7c3aed",
+        "#fbbf24","#34d399","#60a5fa","#f87171","#fb923c"
+    ];
+    const SHAPES = ["rect", "circle", "ribbon"];
+
+    const pieces = Array.from({ length: 160 }, () => ({
+        x:          Math.random() * window.innerWidth,
+        y:          Math.random() * window.innerHeight - window.innerHeight,
+        w:          Math.random() * 10 + 5,
+        h:          Math.random() * 5  + 3,
+        color:      COLORS[Math.floor(Math.random() * COLORS.length)],
+        shape:      SHAPES[Math.floor(Math.random() * SHAPES.length)],
+        speed:      Math.random() * 2.5 + 1.5,
+        rotation:   Math.random() * Math.PI * 2,
+        rotSpeed:   (Math.random() - 0.5) * 0.12,
+        swing:      Math.random() * 4,
+        swingSpeed: Math.random() * 0.04 + 0.01,
+        swingPhase: Math.random() * Math.PI * 2,
+        opacity:    Math.random() * 0.5 + 0.5,
+    }));
+
+    let running = true;
+    let startTime = Date.now();
+
+    function draw() {
+        if (!running) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const elapsed = (Date.now() - startTime) / 1000;
+
+        pieces.forEach(p => {
+            p.y          += p.speed;
+            p.rotation   += p.rotSpeed;
+            p.swingPhase += p.swingSpeed;
+            const sx = Math.sin(p.swingPhase) * p.swing;
+
+            if (p.y > canvas.height + 20) {
+                p.y = -20;
+                p.x = Math.random() * canvas.width;
+            }
+
+            ctx.save();
+            ctx.globalAlpha = p.opacity;
+            ctx.translate(p.x + sx, p.y);
+            ctx.rotate(p.rotation);
+            ctx.fillStyle = p.color;
+
+            if (p.shape === "circle") {
+                ctx.beginPath();
+                ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (p.shape === "ribbon") {
+                ctx.fillRect(-p.w, -p.h / 2, p.w * 2, p.h / 2);
+            } else {
+                ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            }
+
+            ctx.restore();
+        });
+
+        // Fade out confetti after 6 seconds
+        if (elapsed > 6) {
+            const fade = Math.max(0, 1 - (elapsed - 6) / 3);
+            canvas.style.opacity = fade;
+            if (fade <= 0) { running = false; ctx.clearRect(0, 0, canvas.width, canvas.height); }
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+    draw();
+</script>
+</body>
+</html>

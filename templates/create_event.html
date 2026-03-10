@@ -13,18 +13,17 @@
         <input type="text" name="event_name" required><br><br>
 
         <label>Event Date:</label><br>
-        <input type="date" name="event_date" required><br><br>
+        <input type="date" name="event_date" id="event_date" required><br><br>
 
         <label>Time:</label><br>
-        <input type="time" name="event_time" required><br><br>
+        <input type="time" name="event_time" id="event_time" required><br><br>
 
         <label>Venue:</label><br>
-        <select name="venue_id" required style="width:100%; padding:10px; border-radius:12px; border:1px solid #E8A0BF; margin-bottom:15px;">
-            <option value="">-- Select Venue --</option>
-            {% for v in venues %}
-            <option value="{{ v[0] }}">{{ v[1] }} — {{ v[2] }} (Capacity: {{ v[3] }})</option>
-            {% endfor %}
-        </select><br>
+        <select name="venue_id" id="venue_select" required
+                style="width:100%; padding:10px; border-radius:12px; border:1px solid #E8A0BF; margin-bottom:15px;">
+            <option value="">— Select Date &amp; Time first —</option>
+        </select>
+        <div id="venue_hint" style="font-size:12px; color:#a78bca; margin-top:-10px; margin-bottom:15px;"></div>
 
         <label>Organiser:</label><br>
         <input type="text" name="organiser" placeholder="Name of the organiser" required><br><br>
@@ -45,5 +44,59 @@
     <div class="card-top">
         <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
     </div>
+
+<script>
+    const dateInput  = document.getElementById("event_date");
+    const timeInput  = document.getElementById("event_time");
+    const venueSelect = document.getElementById("venue_select");
+    const venueHint   = document.getElementById("venue_hint");
+
+    function getSlot(timeVal) {
+        return timeVal < "12:00" ? "morning" : "afternoon";
+    }
+
+    function slotLabel(slot) {
+        return slot === "morning" ? "Morning (before 12 PM)" : "Afternoon (12 PM onwards)";
+    }
+
+    async function updateVenues() {
+        const date = dateInput.value;
+        const time = timeInput.value;
+
+        if (!date || !time) {
+            venueSelect.innerHTML = '<option value="">— Select Date & Time first —</option>';
+            venueHint.textContent = "";
+            return;
+        }
+
+        const slot = getSlot(time);
+        venueHint.textContent = `Showing availability for ${slotLabel(slot)} on ${date}`;
+
+        const res  = await fetch(`/available_venues?date=${date}&slot=${slot}`);
+        const data = await res.json();
+
+        const prevVal = venueSelect.value;
+        venueSelect.innerHTML = '<option value="">— Select Venue —</option>';
+
+        data.forEach(v => {
+            const opt = document.createElement("option");
+            opt.value = v.id;
+            if (v.available) {
+                opt.textContent = `${v.name} — ${v.location} (Capacity: ${v.capacity})`;
+            } else {
+                opt.textContent = `${v.name} — ${v.location} (Capacity: ${v.capacity})  ❌ Booked`;
+                opt.disabled = true;
+                opt.style.color = "#aaa";
+            }
+            venueSelect.appendChild(opt);
+        });
+
+        // Restore previous selection if still available
+        if (prevVal) venueSelect.value = prevVal;
+    }
+
+    dateInput.addEventListener("change", updateVenues);
+    timeInput.addEventListener("change", updateVenues);
+</script>
 </body>
 </html>

@@ -1,73 +1,46 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>My Events</title>
+    <title>My Events — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
-
 <body>
-{% with messages = get_flashed_messages() %}
-  {% if messages %}
-    <div class="success-popup">
-        <div id="confetti-container"></div>
-        {{ messages[0] }}
-    </div>
-  {% endif %}
-{% endwith %}
-<h2>My Registered Events</h2>
-
-    
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
 
 <div class="container">
+    <h2>💌 My Registered Events</h2>
 
-<h2>💌 My Registered Events</h2>
+    <div class="card">
+        {% if events %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Event Name</th>
+                    <th>Date</th>
+                    <th>Venue</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td>{{ event[0] }}</td>
+                    <td>{{ event[1] }}</td>
+                    <td>{{ event[2] or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align:center; opacity:0.6; padding:20px;">You haven't registered for any events yet 🌸</p>
+        {% endif %}
+    </div>
 
-<div class="card">
-
-<table>
-    <tr>
-        <th>Event Name</th>
-        <th>Date</th>
-        <th>Venue</th>
-    </tr>
-
-    {% for event in events %}
-    <tr>
-        <td>{{ event[0] }}</td>
-        <td>{{ event[1] }}</td>
-        <td>{{ event[2] }}</td>
-    </tr>
-    {% endfor %}
-
-
-</table>
-
+    <div class="card-top">
+        <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
 </div>
-</div>
-
-<br>
-<div class="card-top">
-    <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
-</div>
-
-<script>
-    const confettiContainer = document.getElementById('confetti-container');
-
-    function createConfetti() {
-        for (let i = 0; i < 40; i++) {
-            let confetti = document.createElement('div');
-            confetti.classList.add('confetti');
-            confetti.style.left = Math.random() * 100 + 'vw';
-            confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
-            confettiContainer.appendChild(confetti);
-
-            setTimeout(() => confetti.remove(), 3000);
-        }
-    }
-
-    createConfetti();
-</script>
-
 </body>
 </html>

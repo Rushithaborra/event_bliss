@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, flash, make_response, abort, url_for
+from flask import Flask, render_template, request, redirect, session, flash, make_response, abort, url_for, jsonify
 from flask_mail import Mail, Message
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
@@ -6,6 +6,9 @@ import mysql.connector
 import jwt
 import datetime
 import os
+import random
+import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv(override=True)
 
@@ -67,6 +70,50 @@ if cursor.fetchone()[0] == 0:
     )
 db.commit()
 
+# Ensure registration_date column exists with a DEFAULT and backfill NULLs
+try:
+    cursor.execute("ALTER TABLE registrations ADD COLUMN registration_date DATETIME DEFAULT CURRENT_TIMESTAMP")
+    db.commit()
+except Exception:
+    db.rollback()
+try:
+    cursor.execute("""
+        UPDATE registrations SET registration_date = NOW()
+        WHERE registration_date IS NULL
+    """)
+    db.commit()
+except Exception:
+    db.rollback()
+
+# Add reminder_sent column to registrations if it doesn't exist yet
+try:
+    cursor.execute("ALTER TABLE registrations ADD COLUMN reminder_sent TINYINT(1) DEFAULT 0")
+    db.commit()
+except Exception:
+    db.rollback()
+
+# Add notification_email column to registrations if it doesn't exist yet
+try:
+    cursor.execute("ALTER TABLE registrations ADD COLUMN notification_email VARCHAR(200) NULL")
+    db.commit()
+except Exception:
+    db.rollback()
+
+# Add student profile columns if they don't exist yet
+for _col, _def in [
+    ("phone",    "VARCHAR(20)  NULL"),
+    ("year",     "VARCHAR(20)  NULL"),
+    ("dept",     "VARCHAR(100) NULL"),
+    ("section",  "VARCHAR(20)  NULL"),
+    ("roll_no",  "VARCHAR(50)  NULL"),
+    ("bio",      "TEXT         NULL"),
+]:
+    try:
+        cursor.execute(f"ALTER TABLE students ADD COLUMN {_col} {_def}")
+        db.commit()
+    except Exception:
+        db.rollback()
+
 # ─── JWT HELPERS ──────────────────────────────────────────────────────────────
 def create_jwt(data: dict) -> str:
     payload = {
@@ -127,14 +174,69 @@ def register():
         if cursor.fetchone():
             return render_template("register.html", error="Account already exists. Please login 💌")
 
-        cursor.execute(
-            "INSERT INTO students (name, email, password) VALUES (%s, %s, %s)",
-            (name, email, password),
+        otp = str(random.randint(100000, 999999))
+        session["pending_registration"] = {
+            "name": name,
+            "email": email,
+            "password": password,
+            "otp": otp,
+            "expires_at": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat(),
+        }
+
+        msg = Message("Verify Your Email — Event Bliss", recipients=[email])
+        msg.body = (
+            f"Hi {name},\n\n"
+            f"Thanks for registering on Event Bliss!\n\n"
+            f"Your verification OTP is:\n\n"
+            f"  {otp}\n\n"
+            f"This OTP is valid for 10 minutes. Do not share it with anyone.\n\n"
+            f"If you did not sign up, ignore this email.\n\n"
+            f"— Event Bliss Team"
         )
-        db.commit()
-        return redirect("/student_login")
+        mail.send(msg)
+        flash(f"A 6-digit OTP has been sent to {email}. Please check your inbox. 📧")
+        return redirect("/verify_email")
 
     return render_template("register.html")
+
+
+# ─── EMAIL OTP VERIFICATION ───────────────────────────────────────────────────
+@app.route("/verify_email", methods=["GET", "POST"])
+def verify_email():
+    pending = session.get("pending_registration")
+    if not pending:
+        flash("No pending registration. Please register first.")
+        return redirect("/register")
+
+    if request.method == "POST":
+        entered_otp = request.form["otp"].strip()
+        expires_at  = datetime.datetime.fromisoformat(pending["expires_at"])
+
+        if datetime.datetime.now(datetime.timezone.utc) > expires_at:
+            session.pop("pending_registration", None)
+            flash("OTP expired. Please register again. ⏰")
+            return redirect("/register")
+
+        if entered_otp != pending["otp"]:
+            flash("Incorrect OTP. Please try again. ❌")
+            return render_template("verify_email.html", email=pending["email"])
+
+        cursor.execute("SELECT * FROM students WHERE email = %s", (pending["email"],))
+        if cursor.fetchone():
+            session.pop("pending_registration", None)
+            flash("Account already exists. Please login. 💌")
+            return redirect("/student_login")
+
+        cursor.execute(
+            "INSERT INTO students (name, email, password) VALUES (%s, %s, %s)",
+            (pending["name"], pending["email"], pending["password"]),
+        )
+        db.commit()
+        session.pop("pending_registration", None)
+        flash("Email verified! Your account has been created. 🎉")
+        return redirect("/student_login")
+
+    return render_template("verify_email.html", email=pending["email"])
 
 
 # ─── SELECT ROLE ──────────────────────────────────────────────────────────────
@@ -194,42 +296,60 @@ def google_callback():
         cursor.execute("SELECT * FROM students WHERE email=%s", (email,))
         user = cursor.fetchone()
 
-    # Send email verification before granting access
-    verify_token = create_jwt({
-        "purpose":   "google_verify",
-        "user_id":   user[0],
-        "user_name": user[1],
-        "email":     email,
-    })
-    verify_link = url_for("verify_google_login", token=verify_token, _external=True)
-    msg = Message("Verify Your Login — Event Bliss", recipients=[email])
+    # Send OTP for email verification before granting access
+    otp = str(random.randint(100000, 999999))
+    session["google_verify_otp"] = {
+        "user_id":    user[0],
+        "user_name":  user[1],
+        "email":      email,
+        "otp":        otp,
+        "expires_at": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat(),
+    }
+    msg = Message("Verify Your Google Login — Event Bliss", recipients=[email])
     msg.body = (
         f"Hi {name},\n\n"
         f"You just signed in with Google to Event Bliss.\n\n"
-        f"Click the link below to complete your login (valid for {JWT_EXPIRY_HOURS} hour(s)):\n"
-        f"{verify_link}\n\n"
+        f"Your verification OTP is:\n\n"
+        f"  {otp}\n\n"
+        f"This OTP is valid for 10 minutes. Do not share it with anyone.\n\n"
         f"If you did not attempt to log in, ignore this email.\n\n"
         f"— Event Bliss Team"
     )
     mail.send(msg)
-    flash(f"A verification link has been sent to {email}. Please check your inbox. 📧")
-    return redirect("/student_login")
+    flash(f"A 6-digit OTP has been sent to {email}. Please check your inbox. 📧")
+    return redirect("/verify_google_otp")
 
 
-@app.route("/verify_google_login/<token>")
-def verify_google_login(token):
-    payload = verify_jwt(token)
-    if not payload or payload.get("purpose") != "google_verify":
-        flash("Invalid or expired verification link ❌")
+@app.route("/verify_google_otp", methods=["GET", "POST"])
+def verify_google_otp():
+    pending = session.get("google_verify_otp")
+    if not pending:
+        flash("No pending Google login. Please try again.")
         return redirect("/student_login")
 
-    response = make_response(redirect("/dashboard"))
-    set_jwt_cookie(response, {
-        "user_id":   payload["user_id"],
-        "user_name": payload["user_name"],
-        "role":      "student",
-    })
-    return response
+    if request.method == "POST":
+        entered_otp = request.form["otp"].strip()
+        expires_at  = datetime.datetime.fromisoformat(pending["expires_at"])
+
+        if datetime.datetime.now(datetime.timezone.utc) > expires_at:
+            session.pop("google_verify_otp", None)
+            flash("OTP expired. Please sign in with Google again. ⏰")
+            return redirect("/student_login")
+
+        if entered_otp != pending["otp"]:
+            flash("Incorrect OTP. Please try again. ❌")
+            return render_template("verify_google_otp.html", email=pending["email"])
+
+        session.pop("google_verify_otp", None)
+        response = make_response(redirect("/dashboard"))
+        set_jwt_cookie(response, {
+            "user_id":   pending["user_id"],
+            "user_name": pending["user_name"],
+            "role":      "student",
+        })
+        return response
+
+    return render_template("verify_google_otp.html", email=pending["email"])
 
 
 # ─── ADMIN LOGIN ──────────────────────────────────────────────────────────────
@@ -329,6 +449,131 @@ def admin_dashboard():
     )
 
 
+# ─── ANALYTICS DASHBOARD ──────────────────────────────────────────────────────
+@app.route("/analytics")
+def analytics():
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return redirect("/admin_login")
+
+    import json as _json
+
+    def q(sql, params=()):
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+
+    # ── Top events by registrations ──────────────────────────────────────────
+    top_events = q("""
+        SELECT e.event_name, COUNT(r.reg_id) AS cnt
+        FROM events e
+        LEFT JOIN registrations r ON e.event_id = r.event_id
+        GROUP BY e.event_id, e.event_name
+        ORDER BY cnt DESC
+        LIMIT 8
+    """)
+
+    # ── Department breakdown ──────────────────────────────────────────────────
+    dept_data = q("""
+        SELECT dept, COUNT(*) AS cnt
+        FROM registrations
+        WHERE dept IS NOT NULL AND dept != ''
+        GROUP BY dept
+        ORDER BY cnt DESC
+        LIMIT 8
+    """)
+
+    # ── Year-wise distribution ────────────────────────────────────────────────
+    year_data = q("""
+        SELECT year, COUNT(*) AS cnt
+        FROM registrations
+        WHERE year IS NOT NULL AND year != ''
+        GROUP BY year
+        ORDER BY cnt DESC
+    """)
+
+    # ── Monthly registration trend (last 12 months) ───────────────────────────
+    import calendar as _cal
+    monthly_raw = q("""
+        SELECT DATE_FORMAT(registration_date, '%Y-%m') AS ym,
+               COUNT(*) AS cnt
+        FROM registrations
+        WHERE registration_date IS NOT NULL
+        GROUP BY DATE_FORMAT(registration_date, '%Y-%m')
+        ORDER BY ym DESC
+        LIMIT 12
+    """)
+    monthly_raw = list(reversed(monthly_raw))   # oldest → newest
+    def _ym_label(ym):
+        if not ym:
+            return 'Unknown'
+        parts = ym.split('-')
+        if len(parts) != 2:
+            return ym
+        return f"{_cal.month_abbr[int(parts[1])]} {parts[0]}"
+    monthly_data = [(_ym_label(r[0]), r[1]) for r in monthly_raw]
+
+    # ── Venue usage ───────────────────────────────────────────────────────────
+    venue_data = q("""
+        SELECT COALESCE(v.venue_name, e.venue, 'Unknown') AS venue,
+               COUNT(r.reg_id) AS cnt
+        FROM registrations r
+        JOIN events e ON r.event_id = e.event_id
+        LEFT JOIN venues v ON e.venue_id = v.venue_id
+        GROUP BY COALESCE(v.venue_name, e.venue, 'Unknown')
+        ORDER BY cnt DESC
+        LIMIT 6
+    """)
+
+    # ── Section distribution ──────────────────────────────────────────────────
+    section_data = q("""
+        SELECT section, COUNT(*) AS cnt
+        FROM registrations
+        WHERE section IS NOT NULL AND section != ''
+        GROUP BY section
+        ORDER BY cnt DESC
+        LIMIT 8
+    """)
+
+    # ── Upcoming vs past events ───────────────────────────────────────────────
+    upcoming = q("SELECT COUNT(*) FROM events WHERE event_date >= CURDATE()")[0][0]
+    past     = q("SELECT COUNT(*) FROM events WHERE event_date < CURDATE()")[0][0]
+
+    # ── Avg registrations per event ───────────────────────────────────────────
+    avg_row = q("SELECT ROUND(AVG(cnt),1) FROM (SELECT COUNT(*) cnt FROM registrations GROUP BY event_id) t")
+    avg_regs = avg_row[0][0] or 0
+
+    # ── Most recent 5 registrations ───────────────────────────────────────────
+    recent_regs_raw = q("""
+        SELECT CONCAT_WS(' ', r.first_name, r.last_name) AS student_name,
+               e.event_name,
+               COALESCE(r.dept, '—') AS dept,
+               DATE_FORMAT(r.registration_date, '%d %b %Y') AS reg_date
+        FROM registrations r
+        JOIN events e ON r.event_id = e.event_id
+        WHERE r.registration_date IS NOT NULL
+        ORDER BY r.registration_date DESC
+        LIMIT 5
+    """)
+    recent_regs = [(r[0] or '—', r[1], r[2], r[3]) for r in recent_regs_raw]
+
+    def to_json(rows):
+        return _json.dumps([list(r) for r in rows])
+
+    return render_template(
+        "analytics.html",
+        top_events=to_json(top_events),
+        dept_data=to_json(dept_data),
+        year_data=to_json(year_data),
+        monthly_data=to_json(monthly_data),
+        venue_data=to_json(venue_data),
+        section_data=to_json(section_data),
+        upcoming=upcoming, past=past,
+        avg_regs=avg_regs,
+        recent_regs=recent_regs,
+        total_events=upcoming + past,
+    )
+
+
 # ─── ADMIN EVENTS ─────────────────────────────────────────────────────────────
 @app.route("/admin_events")
 def admin_events():
@@ -382,6 +627,47 @@ def create_event():
     return render_template("create_event.html", venues=venues)
 
 
+# ─── AVAILABLE VENUES API ─────────────────────────────────────────────────────
+@app.route("/available_venues")
+def available_venues():
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 401
+
+    date     = request.args.get("date")
+    time_slot = request.args.get("slot")   # "morning" or "afternoon"
+
+    cursor.execute("SELECT venue_id, venue_name, location, capacity FROM venues ORDER BY venue_name")
+    all_venues = cursor.fetchall()
+
+    booked_ids = set()
+    if date and time_slot:
+        if time_slot == "morning":
+            cursor.execute("""
+                SELECT DISTINCT venue_id FROM events
+                WHERE event_date = %s AND venue_id IS NOT NULL
+                  AND TIME(COALESCE(event_time, '00:00:00')) < '12:00:00'
+            """, (date,))
+        else:
+            cursor.execute("""
+                SELECT DISTINCT venue_id FROM events
+                WHERE event_date = %s AND venue_id IS NOT NULL
+                  AND TIME(COALESCE(event_time, '00:00:00')) >= '12:00:00'
+            """, (date,))
+        booked_ids = {r[0] for r in cursor.fetchall()}
+
+    return jsonify([
+        {
+            "id":        v[0],
+            "name":      v[1],
+            "location":  v[2],
+            "capacity":  v[3],
+            "available": v[0] not in booked_ids,
+        }
+        for v in all_venues
+    ])
+
+
 # ─── EVENTS (student view) ────────────────────────────────────────────────────
 @app.route("/events")
 def events():
@@ -393,10 +679,12 @@ def events():
 
     cursor.execute("""
         SELECT events.event_id, events.event_name, events.event_date,
-               events.venue, events.max_seats,
+               COALESCE(venues.venue_name, events.venue) AS venue_display,
+               events.max_seats,
                COUNT(registrations.event_id) AS registered
         FROM events
         LEFT JOIN registrations ON events.event_id = registrations.event_id
+        LEFT JOIN venues ON events.venue_id = venues.venue_id
         GROUP BY events.event_id
     """)
     all_events = cursor.fetchall()
@@ -405,6 +693,59 @@ def events():
     registered_events = [r[0] for r in cursor.fetchall()]
 
     return render_template("events.html", events=all_events, registered_events=registered_events)
+
+
+# ─── NOTIFICATION EMAIL OTP (AJAX) ────────────────────────────────────────────
+@app.route("/send_notification_otp", methods=["POST"])
+def send_notification_otp():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"ok": False, "error": "Invalid email address"})
+    otp = str(random.randint(100000, 999999))
+    expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
+    session["notif_otp"] = otp
+    session["notif_otp_email"] = email
+    session["notif_otp_expiry"] = expiry
+    try:
+        msg = Message("Event Notification Email Verification — Event Bliss", recipients=[email])
+        msg.body = (
+            f"Hi,\n\n"
+            f"Your OTP to verify this email for event notifications is:\n\n"
+            f"  {otp}\n\n"
+            f"This code expires in 10 minutes.\n\n"
+            f"— Event Bliss Team"
+        )
+        mail.send(msg)
+        return jsonify({"ok": True})
+    except Exception as e:
+        app.logger.error(f"Notification OTP mail error: {e}")
+        return jsonify({"ok": False, "error": "Could not send email. Check the address."})
+
+
+@app.route("/verify_notification_otp", methods=["POST"])
+def verify_notification_otp():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    entered = (data.get("otp") or "").strip()
+    stored_otp    = session.get("notif_otp")
+    stored_email  = session.get("notif_otp_email")
+    stored_expiry = session.get("notif_otp_expiry")
+    if not stored_otp or not stored_email or not stored_expiry:
+        return jsonify({"ok": False, "error": "No OTP session. Please resend."})
+    if datetime.datetime.now(datetime.timezone.utc) > datetime.datetime.fromisoformat(stored_expiry):
+        return jsonify({"ok": False, "error": "OTP expired. Please resend."})
+    if entered != stored_otp:
+        return jsonify({"ok": False, "error": "Incorrect OTP."})
+    # Clear OTP session keys
+    session.pop("notif_otp", None)
+    session.pop("notif_otp_expiry", None)
+    return jsonify({"ok": True, "email": stored_email})
 
 
 # ─── REGISTER FOR EVENT ───────────────────────────────────────────────────────
@@ -419,15 +760,20 @@ def register_event(event_id):
     cursor.execute("SELECT * FROM events WHERE event_id=%s", (event_id,))
     event = cursor.fetchone()
 
+    cursor.execute("SELECT email FROM students WHERE student_id=%s", (student_id,))
+    s_row = cursor.fetchone()
+    student_email = s_row[0] if s_row else ""
+
     if request.method == "POST":
-        first_name  = request.form.get("first_name")
-        middle_name = request.form.get("middle_name")
-        last_name   = request.form.get("last_name")
-        year        = request.form.get("year")
-        dept        = request.form.get("dept")
-        section     = request.form.get("section")
-        roll_no     = request.form.get("roll_no")
-        phone       = request.form.get("phone")
+        first_name        = request.form.get("first_name")
+        middle_name       = request.form.get("middle_name")
+        last_name         = request.form.get("last_name")
+        year              = request.form.get("year")
+        dept              = request.form.get("dept")
+        section           = request.form.get("section")
+        roll_no           = request.form.get("roll_no")
+        phone             = request.form.get("phone")
+        notification_email = (request.form.get("notification_email") or "").strip() or None
 
         missing_fields = [
             f for f, v in [
@@ -444,6 +790,7 @@ def register_event(event_id):
                 event=event,
                 form_data=request.form,
                 missing_fields=missing_fields,
+                student_email=student_email,
             )
 
         cursor.execute(
@@ -455,15 +802,65 @@ def register_event(event_id):
 
         cursor.execute("""
             INSERT INTO registrations
-            (student_id, event_id, first_name, middle_name, last_name, year, dept, section, roll_no, phone)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (student_id, event_id, first_name, middle_name, last_name, year, dept, section, roll_no, phone))
+            (student_id, event_id, first_name, middle_name, last_name, year, dept, section, roll_no, phone, notification_email, registration_date)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+        """, (student_id, event_id, first_name, middle_name, last_name, year, dept, section, roll_no, phone, notification_email))
         db.commit()
 
-        flash("Registration Successful 💖")
-        return redirect("/my_events")
+        # Immediate reminder if event is within the next 24 hours
+        try:
+            ev_date = event[2]   # datetime.date
+            ev_time = event[5]   # datetime.timedelta or None
+            if ev_date and ev_time is not None:
+                if isinstance(ev_time, datetime.timedelta):
+                    event_dt = datetime.datetime.combine(ev_date, datetime.time()) + ev_time
+                else:
+                    event_dt = datetime.datetime.combine(ev_date, ev_time)
+                time_until = event_dt - datetime.datetime.now()
+                if datetime.timedelta(0) < time_until <= datetime.timedelta(hours=24):
+                    cursor.execute("SELECT email, name FROM students WHERE student_id=%s", (student_id,))
+                    s_row = cursor.fetchone()
+                    if s_row:
+                        venue_display = event[3]
+                        if event[8]:
+                            cursor.execute("SELECT venue_name FROM venues WHERE venue_id=%s", (event[8],))
+                            v_row = cursor.fetchone()
+                            if v_row:
+                                venue_display = v_row[0]
+                        msg = Message("Event Reminder — Event Bliss", recipients=[s_row[0]])
+                        msg.body = (
+                            f"Hi {first_name or s_row[1]},\n\n"
+                            f"You just registered for an event starting in less than 24 hours!\n\n"
+                            f"  Event  : {event[1]}\n"
+                            f"  Date   : {ev_date}\n"
+                            f"  Time   : {_fmt_time(ev_time)}\n"
+                            f"  Venue  : {venue_display or 'TBD'}\n\n"
+                            f"See you there!\n\n"
+                            f"— Event Bliss Team"
+                        )
+                        mail.send(msg)
+                        cursor.execute(
+                            "UPDATE registrations SET reminder_sent = 1 WHERE student_id=%s AND event_id=%s",
+                            (student_id, event_id),
+                        )
+                        db.commit()
+        except Exception as reminder_err:
+            app.logger.error(f"Immediate reminder error: {reminder_err}")
 
-    return render_template("event_registration_form.html", event=event)
+        session["reg_success_event"] = event[1]
+        return redirect("/registration_success")
+
+    return render_template("event_registration_form.html", event=event, student_email=student_email)
+
+
+# ─── REGISTRATION SUCCESS ─────────────────────────────────────────────────────
+@app.route("/registration_success")
+def registration_success():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return redirect("/student_login")
+    event_name = session.pop("reg_success_event", "the event")
+    return render_template("registration_success.html", event_name=event_name, name=user["user_name"])
 
 
 # ─── MY EVENTS ────────────────────────────────────────────────────────────────
@@ -481,6 +878,54 @@ def my_events():
     """, (user["user_id"],))
 
     return render_template("my_events.html", events=cursor.fetchall())
+
+
+# ─── STUDENT PROFILE ──────────────────────────────────────────────────────────
+@app.route("/student_profile", methods=["GET", "POST"])
+def student_profile():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return redirect("/student_login")
+
+    student_id = user["user_id"]
+
+    if request.method == "POST":
+        name    = request.form.get("name", "").strip()
+        phone   = request.form.get("phone", "").strip()
+        year    = request.form.get("year", "").strip()
+        dept    = request.form.get("dept", "").strip()
+        section = request.form.get("section", "").strip()
+        roll_no = request.form.get("roll_no", "").strip()
+        bio     = request.form.get("bio", "").strip()
+
+        if not name:
+            flash("⚠ Name cannot be empty.")
+        else:
+            cursor.execute("""
+                UPDATE students
+                SET name=%s, phone=%s, year=%s, dept=%s, section=%s, roll_no=%s, bio=%s
+                WHERE student_id=%s
+            """, (name, phone or None, year or None, dept or None,
+                  section or None, roll_no or None, bio or None, student_id))
+            db.commit()
+            flash("✅ Profile updated successfully!")
+
+    cursor.execute(
+        "SELECT name, email, phone, year, dept, section, roll_no, bio FROM students WHERE student_id=%s",
+        (student_id,)
+    )
+    row = cursor.fetchone()
+    student = {
+        "name":    row[0], "email":   row[1], "phone":   row[2],
+        "year":    row[3], "dept":    row[4], "section": row[5],
+        "roll_no": row[6], "bio":     row[7],
+    }
+
+    # Count registered events
+    cursor.execute("SELECT COUNT(*) FROM registrations WHERE student_id=%s", (student_id,))
+    event_count = cursor.fetchone()[0]
+
+    return render_template("student_profile.html", student=student, event_count=event_count)
 
 
 # ─── DELETE EVENT ─────────────────────────────────────────────────────────────
@@ -735,33 +1180,64 @@ def forgot_password():
         cursor.execute("SELECT * FROM students WHERE email=%s", (email,))
         student = cursor.fetchone()
         if student:
-            token = create_jwt({"purpose": "student_reset", "student_id": student[0], "email": email})
-            reset_link = url_for("reset_password", token=token, _external=True)
-            msg = Message("Password Reset — Event Bliss", recipients=[email])
+            otp = str(random.randint(100000, 999999))
+            session["student_reset_otp"] = {
+                "student_id": student[0],
+                "email":      email,
+                "otp":        otp,
+                "expires_at": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat(),
+            }
+            msg = Message("Password Reset OTP — Event Bliss", recipients=[email])
             msg.body = (
                 f"Hi {student[1]},\n\n"
                 f"You requested a password reset for your Event Bliss account.\n\n"
-                f"Click the link below to reset your password (valid for {JWT_EXPIRY_HOURS} hour(s)):\n"
-                f"{reset_link}\n\n"
+                f"Your OTP is:\n\n"
+                f"  {otp}\n\n"
+                f"This OTP is valid for 10 minutes. Do not share it with anyone.\n\n"
                 f"If you did not request this, ignore this email.\n\n"
                 f"— Event Bliss Team"
             )
             mail.send(msg)
-            flash("Password reset link sent to your email 📧")
-            return redirect("/forgot_password")
+            flash("A 6-digit OTP has been sent to your email 📧")
+            return redirect("/verify_reset_otp")
         else:
             flash("No account found with that email ❌")
     return render_template("forgot_password.html")
 
 
-@app.route("/reset_password/<token>", methods=["GET", "POST"])
-def reset_password(token):
-    payload = verify_jwt(token)
-    if not payload or payload.get("purpose") != "student_reset":
-        flash("Invalid or expired reset link ❌")
+@app.route("/verify_reset_otp", methods=["GET", "POST"])
+def verify_reset_otp():
+    pending = session.get("student_reset_otp")
+    if not pending:
+        flash("No pending password reset. Please try again.")
         return redirect("/forgot_password")
 
-    student_id = payload["student_id"]
+    if request.method == "POST":
+        entered_otp = request.form["otp"].strip()
+        expires_at  = datetime.datetime.fromisoformat(pending["expires_at"])
+
+        if datetime.datetime.now(datetime.timezone.utc) > expires_at:
+            session.pop("student_reset_otp", None)
+            flash("OTP expired. Please request a new one. ⏰")
+            return redirect("/forgot_password")
+
+        if entered_otp != pending["otp"]:
+            flash("Incorrect OTP. Please try again. ❌")
+            return render_template("verify_reset_otp.html", email=pending["email"])
+
+        session.pop("student_reset_otp", None)
+        session["reset_student_id"] = pending["student_id"]
+        return redirect("/reset_password_form")
+
+    return render_template("verify_reset_otp.html", email=pending["email"])
+
+
+@app.route("/reset_password_form", methods=["GET", "POST"])
+def reset_password_form():
+    student_id = session.get("reset_student_id")
+    if not student_id:
+        flash("Session expired. Please request a new OTP. ❌")
+        return redirect("/forgot_password")
 
     if request.method == "POST":
         password         = request.form["password"]
@@ -769,14 +1245,15 @@ def reset_password(token):
 
         if password != confirm_password:
             flash("Passwords do not match ❌")
-            return render_template("reset_password.html", token=token)
+            return render_template("reset_password.html")
 
         cursor.execute("UPDATE students SET password=%s WHERE student_id=%s", (password, student_id))
         db.commit()
+        session.pop("reset_student_id", None)
         flash("Password updated successfully 💖")
         return redirect(url_for("student_login"))
 
-    return render_template("reset_password.html", token=token)
+    return render_template("reset_password.html")
 
 
 # ─── ADMIN FORGOT PASSWORD ────────────────────────────────────────────────────
@@ -788,34 +1265,65 @@ def admin_forgot_password():
         admin_user = cursor.fetchone()
 
         if admin_user:
-            token = create_jwt({"purpose": "admin_reset", "admin_id": admin_user[0], "email": email})
-            reset_link = url_for("admin_reset_password", token=token, _external=True)
-            msg = Message("Admin Password Reset — Event Bliss", recipients=[email])
+            otp = str(random.randint(100000, 999999))
+            session["admin_reset_otp"] = {
+                "admin_id":   admin_user[0],
+                "email":      email,
+                "otp":        otp,
+                "expires_at": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat(),
+            }
+            msg = Message("Admin Password Reset OTP — Event Bliss", recipients=[email])
             msg.body = (
                 f"Hi {admin_user[1]},\n\n"
                 f"You requested a password reset for your admin account.\n\n"
-                f"Click the link below to reset your password (valid for {JWT_EXPIRY_HOURS} hour(s)):\n"
-                f"{reset_link}\n\n"
+                f"Your OTP is:\n\n"
+                f"  {otp}\n\n"
+                f"This OTP is valid for 10 minutes. Do not share it with anyone.\n\n"
                 f"If you did not request this, ignore this email.\n\n"
                 f"— Event Bliss Team"
             )
             mail.send(msg)
-            flash("Password reset link sent to your email 📧")
-            return redirect("/admin_forgot_password")
+            flash("A 6-digit OTP has been sent to your email 📧")
+            return redirect("/verify_admin_reset_otp")
         else:
             flash("No admin account found with that email ❌")
 
     return render_template("admin_forgot_password.html")
 
 
-@app.route("/admin_reset_password/<token>", methods=["GET", "POST"])
-def admin_reset_password(token):
-    payload = verify_jwt(token)
-    if not payload or payload.get("purpose") != "admin_reset":
-        flash("Invalid or expired reset link ❌")
+@app.route("/verify_admin_reset_otp", methods=["GET", "POST"])
+def verify_admin_reset_otp():
+    pending = session.get("admin_reset_otp")
+    if not pending:
+        flash("No pending admin password reset. Please try again.")
         return redirect("/admin_forgot_password")
 
-    admin_id = payload["admin_id"]
+    if request.method == "POST":
+        entered_otp = request.form["otp"].strip()
+        expires_at  = datetime.datetime.fromisoformat(pending["expires_at"])
+
+        if datetime.datetime.now(datetime.timezone.utc) > expires_at:
+            session.pop("admin_reset_otp", None)
+            flash("OTP expired. Please request a new one. ⏰")
+            return redirect("/admin_forgot_password")
+
+        if entered_otp != pending["otp"]:
+            flash("Incorrect OTP. Please try again. ❌")
+            return render_template("verify_admin_reset_otp.html", email=pending["email"])
+
+        session.pop("admin_reset_otp", None)
+        session["reset_admin_id"] = pending["admin_id"]
+        return redirect("/admin_reset_password_form")
+
+    return render_template("verify_admin_reset_otp.html", email=pending["email"])
+
+
+@app.route("/admin_reset_password_form", methods=["GET", "POST"])
+def admin_reset_password_form():
+    admin_id = session.get("reset_admin_id")
+    if not admin_id:
+        flash("Session expired. Please request a new OTP. ❌")
+        return redirect("/admin_forgot_password")
 
     if request.method == "POST":
         password         = request.form["password"]
@@ -823,14 +1331,15 @@ def admin_reset_password(token):
 
         if password != confirm_password:
             flash("Passwords do not match ❌")
-            return render_template("admin_reset_password.html", token=token)
+            return render_template("admin_reset_password.html")
 
         cursor.execute("UPDATE admins SET password=%s WHERE admin_id=%s", (password, admin_id))
         db.commit()
+        session.pop("reset_admin_id", None)
         flash("Admin password updated successfully 💖")
         return redirect("/admin_login")
 
-    return render_template("admin_reset_password.html", token=token)
+    return render_template("admin_reset_password.html")
 
 
 # ─── ERROR HANDLERS ───────────────────────────────────────────────────────────
@@ -857,6 +1366,100 @@ def conflict(e):
 @app.errorhandler(500)
 def server_error(e):
     return render_template("errors/500.html"), 500
+
+
+# ─── EVENT REMINDER SCHEDULER ─────────────────────────────────────────────────
+def _fmt_time(event_time):
+    """Convert MySQL TIME (timedelta) to HH:MM string."""
+    if isinstance(event_time, datetime.timedelta):
+        total = int(event_time.total_seconds())
+        return f"{total // 3600:02d}:{(total % 3600) // 60:02d}"
+    return str(event_time) if event_time else "TBD"
+
+
+def send_event_reminders():
+    """Runs every hour. Emails students whose event starts within the next 24 hours."""
+    try:
+        conn = mysql.connector.connect(
+            host=os.environ.get("DB_HOST", "localhost"),
+            user=os.environ.get("DB_USER", "root"),
+            password=os.environ.get("DB_PASSWORD", ""),
+            database=os.environ.get("DB_NAME", "event_management"),
+        )
+        cur = conn.cursor()
+        # ADDTIME(CAST(date AS DATETIME), time) is more reliable than TIMESTAMP(date, time)
+        cur.execute("""
+            SELECT r.reg_id, r.first_name, s.name,
+                   COALESCE(r.notification_email, s.email) AS recipient_email,
+                   e.event_name, e.event_date, e.event_time,
+                   COALESCE(v.venue_name, e.venue) AS venue_display
+            FROM registrations r
+            JOIN events e ON r.event_id = e.event_id
+            JOIN students s ON r.student_id = s.student_id
+            LEFT JOIN venues v ON e.venue_id = v.venue_id
+            WHERE r.reminder_sent = 0
+              AND ADDTIME(CAST(e.event_date AS DATETIME), COALESCE(e.event_time, '00:00:00'))
+                  BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 24 HOUR)
+        """)
+        rows = cur.fetchall()
+        sent_count = 0
+        with app.app_context():
+            for reg_id, first_name, name, recipient_email, event_name, event_date, event_time, venue_display in rows:
+                try:
+                    display_name = first_name or name
+                    msg = Message("Event Reminder — Event Bliss", recipients=[recipient_email])
+                    msg.body = (
+                        f"Hi {display_name},\n\n"
+                        f"This is a reminder that you are registered for an upcoming event:\n\n"
+                        f"  Event  : {event_name}\n"
+                        f"  Date   : {event_date}\n"
+                        f"  Time   : {_fmt_time(event_time)}\n"
+                        f"  Venue  : {venue_display or 'TBD'}\n\n"
+                        f"The event starts in less than 24 hours. See you there!\n\n"
+                        f"— Event Bliss Team"
+                    )
+                    mail.send(msg)
+                    cur.execute("UPDATE registrations SET reminder_sent = 1 WHERE reg_id = %s", (reg_id,))
+                    conn.commit()
+                    sent_count += 1
+                except Exception as mail_err:
+                    app.logger.error(f"Failed to send reminder to {recipient_email}: {mail_err}")
+
+            # Send summary to admin after batch completes
+            if sent_count > 0:
+                try:
+                    cur.execute("SELECT email FROM admins WHERE username='admin' LIMIT 1")
+                    admin_row = cur.fetchone()
+                    if admin_row:
+                        summary = Message("Reminder Batch Summary — Event Bliss", recipients=[admin_row[0]])
+                        summary.body = (
+                            f"Hi Admin,\n\n"
+                            f"The scheduled reminder job just completed.\n\n"
+                            f"  Reminders sent : {sent_count}\n\n"
+                            f"All students with events within the next 24 hours have been notified.\n\n"
+                            f"— Event Bliss System"
+                        )
+                        mail.send(summary)
+                except Exception as summary_err:
+                    app.logger.error(f"Failed to send admin summary: {summary_err}")
+
+        cur.close()
+        conn.close()
+    except Exception as e:
+        app.logger.error(f"Reminder scheduler error: {e}")
+
+
+# Start scheduler once. In Flask debug/reloader mode only run in the child process.
+# WERKZEUG_RUN_MAIN is "true" in the child; unset in production (no reloader).
+_werkzeug = os.environ.get("WERKZEUG_RUN_MAIN")
+if _werkzeug == "true" or _werkzeug is None:
+    _scheduler = BackgroundScheduler()
+    _scheduler.add_job(
+        send_event_reminders, "interval", hours=1,
+        next_run_time=datetime.datetime.now()   # run immediately on start
+    )
+    _scheduler.start()
+    atexit.register(lambda: _scheduler.shutdown(wait=False))
 
 
 # ─── RUN ──────────────────────────────────────────────────────────────────────

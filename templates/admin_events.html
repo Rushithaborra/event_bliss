@@ -1,50 +1,62 @@
+<!DOCTYPE html>
+<html>
 <head>
+    <title>All Events — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
 
 <div class="container">
+    <h2>💌 All Events</h2>
 
-<h2>💌 All Events</h2>
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Event Name</th>
+                    <th>Date</th>
+                    <th>Venue</th>
+                    <th>Organiser</th>
+                    <th>Seats</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td>{{ event[1] }}</td>
+                    <td>{{ event[2] }}</td>
+                    <td>{{ event[3] or '—' }}</td>
+                    <td>{{ event[5] or '—' }}</td>
+                    <td>{{ event[4] }}</td>
+                    <td style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                        {% if perms.can_view_registrations %}
+                            <a href="/admin/event/{{ event[0] }}" class="btn-action">👥 Registrations</a>
+                            <a href="/admin/event/{{ event[0] }}/rsvps" class="btn-action">💌 RSVPs</a>
+                        {% endif %}
+                        {% if perms.can_edit_event %}
+                            <a href="/edit_event/{{ event[0] }}" class="btn-action">✏️ Edit</a>
+                        {% endif %}
+                        {% if perms.can_delete_event %}
+                            <a href="/delete_event/{{ event[0] }}"
+                               class="btn-action btn-action-danger"
+                               onclick="return confirm('Delete this event?')">🗑 Delete</a>
+                        {% endif %}
+                        <a href="/rsvp/{{ event[0] }}" target="_blank" class="btn-action">🔗 RSVP Link</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
-<div class="card">
-<table>
-    <tr>
-        <th>Event Name</th>
-        <th>Date</th>
-        <th>Venue</th>
-        <th>Organiser</th>
-        <th>Seats</th>
-        <th>Actions</th>
-    </tr>
-
-    {% for event in events %}
-    <tr>
-        <td>{{ event[1] }}</td>
-        <td>{{ event[2] }}</td>
-        <td>{{ event[3] }}</td>
-        <td>{{ event[5] or '—' }}</td>
-        <td>{{ event[4] }}</td>
-        <td>
-            {% if perms.can_view_registrations %}
-                <a href="/admin/event/{{ event[0] }}">Registrations</a> |
-                <a href="/admin/event/{{ event[0] }}/rsvps">RSVPs</a>
-            {% endif %}
-            {% if perms.can_edit_event %}
-                | <a href="/edit_event/{{ event[0] }}">Edit</a>
-            {% endif %}
-            {% if perms.can_delete_event %}
-                | <a href="/delete_event/{{ event[0] }}">Delete</a>
-            {% endif %}
-            | <a href="/rsvp/{{ event[0] }}" target="_blank">RSVP Link</a>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
+    <div class="card-top">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
 </div>
-</div>
-
-<br>
-<div class="card-top">
-    <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
-</div>
+</body>
+</html>

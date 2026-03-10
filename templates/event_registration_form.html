@@ -1,78 +1,383 @@
+<!DOCTYPE html>
+<html>
 <head>
+    <title>Register — {{ event[1] }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .email-choice-card {
+            background: rgba(255,255,255,0.72);
+            backdrop-filter: blur(14px);
+            border-radius: 20px;
+            padding: 28px 32px;
+            box-shadow: 0 8px 28px rgba(180,130,220,0.13);
+            border: 1.5px solid #e8d5ff;
+            margin-bottom: 22px;
+        }
+        .email-choice-card h4 {
+            margin: 0 0 6px;
+            color: #7c3aed;
+            font-size: 16px;
+        }
+        .email-choice-card p {
+            margin: 0 0 16px;
+            font-size: 13px;
+            color: #9d82c0;
+        }
+        .email-option-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            border: 1.5px solid #e8d5ff;
+            background: rgba(255,255,255,0.6);
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 14px;
+            color: #6d5b8c;
+            margin-bottom: 10px;
+        }
+        .email-option-row:hover { background: #f8f0ff; border-color: #cbb4f4; }
+        .email-option-row input[type="radio"] {
+            accent-color: #c084fc;
+            width: 17px; height: 17px;
+            flex-shrink: 0;
+        }
+        .email-badge {
+            background: linear-gradient(135deg, #fde8f5, #ede0ff);
+            border: 1px solid #cbb4f4;
+            border-radius: 20px;
+            padding: 3px 12px;
+            font-size: 13px;
+            color: #7c3aed;
+            font-weight: 600;
+        }
+        #custom-email-block {
+            display: none;
+            margin-top: 14px;
+        }
+        .otp-row {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-start;
+            margin: 10px 0;
+        }
+        .otp-row input {
+            width: 44px !important;
+            height: 48px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 600;
+            border-radius: 12px;
+            border: 1.5px solid #cbb4f4;
+            background: rgba(255,255,255,0.7);
+            color: #6d5b8c;
+            outline: none;
+            transition: 0.2s;
+            padding: 0;
+        }
+        .otp-row input:focus { border-color: #9d5cf5; box-shadow: 0 0 0 3px rgba(157,92,245,0.15); }
+        .send-otp-btn {
+            background: linear-gradient(135deg, #fde8f5, #ede0ff);
+            border: 1.5px solid #cbb4f4;
+            border-radius: 20px;
+            padding: 8px 18px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #7c3aed;
+            cursor: pointer;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+        .send-otp-btn:hover { background: linear-gradient(135deg, #f5d0ef, #e0d0ff); }
+        .send-otp-btn:disabled { opacity: 0.5; cursor: default; }
+        .verify-btn {
+            background: linear-gradient(135deg, #c084fc, #9d5cf5);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .verify-btn:hover { opacity: 0.88; }
+        .otp-status { font-size: 13px; margin-top: 6px; min-height: 18px; }
+        .otp-status.ok  { color: #6d9e5a; }
+        .otp-status.err { color: #c0496a; }
+        .verified-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, #d4f5e0, #e8f5d4);
+            border: 1px solid #7ec892;
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #3a8a56;
+            margin-top: 10px;
+        }
+        .input-row { display: flex; gap: 10px; align-items: flex-end; }
+        .input-row input { flex: 1; }
+    </style>
 </head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
 
-<h2>{{ event[1] }}</h2>
+<div class="container" style="max-width:720px;">
 
-<p>
-Date: {{ event[2] }} <br>
-Time: {{ event[3] }} <br>
-Venue: {{ event[4] }} <br>
-Theme: {{ event[6] }} <br>
-Requirements: {{ event[7] }}
-</p>
-
-<hr>
-
-<h3>Registration Form</h3>
-
-{% with messages = get_flashed_messages() %}
-  {% if messages %}
-    <div class="flash-message">
-      {% for msg in messages %}
-        <p>{{ msg }}</p>
-      {% endfor %}
+    <!-- Event info card -->
+    <div class="card" style="margin-bottom:20px; border-left:4px solid #cbb4f4;">
+        <h2 style="margin:0 0 10px; color:#7c3aed; font-size:22px;">🌸 {{ event[1] }}</h2>
+        <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:14px; color:#8d6a9f; margin-bottom:10px;">
+            <span>📅 {{ event[2] }}</span>
+            <span>🕐 {{ event[5] or 'TBD' }}</span>
+            <span>📍 {{ event[3] or 'TBD' }}</span>
+            {% if event[6] %}<span>🎨 {{ event[6] }}</span>{% endif %}
+        </div>
+        {% if event[7] %}
+        <div style="background:rgba(203,180,244,0.15); border-radius:12px; padding:10px 14px; font-size:13px; color:#7c3aed; margin-top:4px;">
+            📋 {{ event[7] }}
+        </div>
+        {% endif %}
     </div>
-  {% endif %}
-{% endwith %}
 
-<form method="POST">
+    <!-- Email notification preference -->
+    <div class="email-choice-card">
+        <h4>📧 Notification Email</h4>
+        <p>Choose which email should receive reminders for this event.</p>
 
-First Name: <input
-type="text"
-name="first_name"
-value="{{ form_data.first_name if form_data else '' }}"
-class="{% if missing_fields and 'first_name' in missing_fields %}error-input{% endif %}"><br><br>
+        <label class="email-option-row">
+            <input type="radio" name="email_choice" value="account" checked onchange="toggleEmailChoice(this)">
+            <span>Use my account email</span>
+            <span class="email-badge">{{ student_email }}</span>
+        </label>
 
-Middle Name: <input type="text" name="middle_name" value="{{ form_data.middle_name if form_data else '' }}"><br><br>
+        <label class="email-option-row">
+            <input type="radio" name="email_choice" value="custom" onchange="toggleEmailChoice(this)">
+            <span>Use a different email</span>
+        </label>
 
-Last Name: <input
-type="text"
-name="last_name"
-value="{{ form_data.last_name if form_data else '' }}"
-class="{% if missing_fields and 'last_name' in missing_fields %}error-input{% endif %}"><br><br>
+        <div id="custom-email-block">
+            <div class="input-row" style="margin-bottom:8px;">
+                <input type="email" id="custom-email-input" placeholder="Enter another email address">
+                <button type="button" class="send-otp-btn" id="send-otp-btn" onclick="sendOtp()">Send OTP</button>
+            </div>
+            <div id="otp-input-block" style="display:none;">
+                <div class="otp-row" id="otp-boxes"></div>
+                <div style="display:flex; gap:10px; margin-top:6px; align-items:center;">
+                    <button type="button" class="verify-btn" onclick="verifyOtp()">Verify</button>
+                    <button type="button" class="send-otp-btn" onclick="sendOtp(true)" id="resend-btn" style="display:none;">Resend OTP</button>
+                </div>
+            </div>
+            <div class="otp-status" id="otp-status"></div>
+            <div id="verified-block" style="display:none;">
+                <div class="verified-badge">✅ <span id="verified-email-text"></span> verified</div>
+            </div>
+        </div>
+    </div>
 
-Year: <input
-type="text"
-name="year"
-value="{{ form_data.year if form_data else '' }}"
-class="{% if missing_fields and 'year' in missing_fields %}error-input{% endif %}"><br><br>
+    <!-- Registration form -->
+    <div class="card">
+        <p class="form-section-title">Registration Form</p>
 
-Department: <input
-type="text"
-name="dept"
-value="{{ form_data.dept if form_data else '' }}"
-class="{% if missing_fields and 'dept' in missing_fields %}error-input{% endif %}"><br><br>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-message">
+            {% for msg in messages %}<p style="margin:0;">{{ msg }}</p>{% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
 
-Section: <input
-type="text"
-name="section"
-value="{{ form_data.section if form_data else '' }}"
-class="{% if missing_fields and 'section' in missing_fields %}error-input{% endif %}"><br><br>
+        <form method="POST" id="reg-form">
+            <!-- Hidden field populated by email-choice logic -->
+            <input type="hidden" name="notification_email" id="notification_email_input">
 
-Roll No: <input
-type="text"
-name="roll_no"
-value="{{ form_data.roll_no if form_data else '' }}"
-class="{% if missing_fields and 'roll_no' in missing_fields %}error-input{% endif %}"><br><br>
+            <div class="reg-grid">
+                <div>
+                    <label>First Name <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="first_name"
+                           value="{{ form_data.first_name if form_data else '' }}"
+                           class="{% if missing_fields and 'first_name' in missing_fields %}error-input{% endif %}"
+                           placeholder="First name" required>
+                </div>
+                <div>
+                    <label>Middle Name</label>
+                    <input type="text" name="middle_name"
+                           value="{{ form_data.middle_name if form_data else '' }}"
+                           placeholder="Middle name (optional)">
+                </div>
+                <div>
+                    <label>Last Name <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="last_name"
+                           value="{{ form_data.last_name if form_data else '' }}"
+                           class="{% if missing_fields and 'last_name' in missing_fields %}error-input{% endif %}"
+                           placeholder="Last name" required>
+                </div>
+                <div>
+                    <label>Roll No <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="roll_no"
+                           value="{{ form_data.roll_no if form_data else '' }}"
+                           class="{% if missing_fields and 'roll_no' in missing_fields %}error-input{% endif %}"
+                           placeholder="e.g. 21CS001" required>
+                </div>
+                <div>
+                    <label>Year <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="year"
+                           value="{{ form_data.year if form_data else '' }}"
+                           class="{% if missing_fields and 'year' in missing_fields %}error-input{% endif %}"
+                           placeholder="e.g. 2nd Year" required>
+                </div>
+                <div>
+                    <label>Department <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="dept"
+                           value="{{ form_data.dept if form_data else '' }}"
+                           class="{% if missing_fields and 'dept' in missing_fields %}error-input{% endif %}"
+                           placeholder="e.g. CSE" required>
+                </div>
+                <div>
+                    <label>Section <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="section"
+                           value="{{ form_data.section if form_data else '' }}"
+                           class="{% if missing_fields and 'section' in missing_fields %}error-input{% endif %}"
+                           placeholder="e.g. A" required>
+                </div>
+                <div>
+                    <label>Phone <span style="color:#e07aad;">*</span></label>
+                    <input type="text" name="phone"
+                           value="{{ form_data.phone if form_data else '' }}"
+                           class="{% if missing_fields and 'phone' in missing_fields %}error-input{% endif %}"
+                           placeholder="10-digit number" required>
+                </div>
+            </div>
 
-Phone: <input
-type="text"
-name="phone"
-value="{{ form_data.phone if form_data else '' }}"
-class="{% if missing_fields and 'phone' in missing_fields %}error-input{% endif %}"><br><br>
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">
+                Submit Registration 🌸
+            </button>
+        </form>
+    </div>
 
-<button type="submit">Submit Registration</button>
+    <div class="card-top">
+        <a href="/events" class="btn-back">← Back to Events</a>
+    </div>
+</div>
 
-</form>
+<script>
+// Build 6 OTP boxes
+const otpRow = document.getElementById('otp-boxes');
+for (let i = 0; i < 6; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.maxLength = 1;
+    inp.inputMode = 'numeric';
+    inp.dataset.idx = i;
+    inp.addEventListener('input', e => {
+        const v = e.target.value.replace(/\D/g,'');
+        e.target.value = v;
+        if (v && i < 5) otpRow.children[i+1].focus();
+    });
+    inp.addEventListener('keydown', e => {
+        if (e.key === 'Backspace' && !e.target.value && i > 0) otpRow.children[i-1].focus();
+    });
+    otpRow.appendChild(inp);
+}
+// Paste support
+otpRow.addEventListener('paste', e => {
+    e.preventDefault();
+    const digits = (e.clipboardData.getData('text')).replace(/\D/g,'').slice(0,6);
+    [...otpRow.children].forEach((inp, i) => { inp.value = digits[i] || ''; });
+    const last = Math.min(digits.length, 5);
+    otpRow.children[last].focus();
+});
+
+function toggleEmailChoice(radio) {
+    const block = document.getElementById('custom-email-block');
+    if (radio.value === 'custom') {
+        block.style.display = 'block';
+    } else {
+        block.style.display = 'none';
+        // Clear hidden field so account email is used (NULL stored, scheduler falls back to account email)
+        document.getElementById('notification_email_input').value = '';
+    }
+}
+
+let otpSent = false;
+let verifiedEmail = null;
+
+function setStatus(msg, type) {
+    const el = document.getElementById('otp-status');
+    el.textContent = msg;
+    el.className = 'otp-status ' + (type || '');
+}
+
+function sendOtp(isResend) {
+    const email = document.getElementById('custom-email-input').value.trim();
+    if (!email || !email.includes('@')) { setStatus('Enter a valid email address.', 'err'); return; }
+    const btn = document.getElementById('send-otp-btn');
+    btn.disabled = true;
+    setStatus('Sending OTP…', '');
+    fetch('/send_notification_otp', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        if (data.ok) {
+            otpSent = true;
+            document.getElementById('otp-input-block').style.display = 'block';
+            document.getElementById('resend-btn').style.display = 'inline-block';
+            setStatus('OTP sent! Check your inbox.', 'ok');
+            otpRow.children[0].focus();
+        } else {
+            setStatus(data.error || 'Failed to send OTP.', 'err');
+        }
+    })
+    .catch(() => { btn.disabled = false; setStatus('Network error. Try again.', 'err'); });
+}
+
+function verifyOtp() {
+    const otp = [...otpRow.children].map(i => i.value).join('');
+    if (otp.length < 6) { setStatus('Enter the full 6-digit OTP.', 'err'); return; }
+    setStatus('Verifying…', '');
+    fetch('/verify_notification_otp', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({otp})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            verifiedEmail = data.email;
+            document.getElementById('notification_email_input').value = verifiedEmail;
+            document.getElementById('otp-input-block').style.display = 'none';
+            document.getElementById('custom-email-input').disabled = true;
+            document.getElementById('send-otp-btn').style.display = 'none';
+            document.getElementById('verified-block').style.display = 'block';
+            document.getElementById('verified-email-text').textContent = verifiedEmail;
+            setStatus('', '');
+        } else {
+            setStatus(data.error || 'Verification failed.', 'err');
+        }
+    })
+    .catch(() => setStatus('Network error. Try again.', 'err'));
+}
+
+// On form submit: if "custom" is selected but OTP not verified, warn user
+document.getElementById('reg-form').addEventListener('submit', function(e) {
+    const choice = document.querySelector('input[name="email_choice"]:checked');
+    if (choice && choice.value === 'custom' && !verifiedEmail) {
+        e.preventDefault();
+        setStatus('Please verify your email with OTP before submitting, or switch to account email.', 'err');
+        document.querySelector('.email-choice-card').scrollIntoView({behavior:'smooth'});
+    }
+});
+</script>
+</body>
+</html>
