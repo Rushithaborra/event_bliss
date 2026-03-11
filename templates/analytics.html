@@ -241,22 +241,28 @@ function noDataMsg(canvasId, msg) {
     wrap.innerHTML = `<div class="no-data">${msg || 'No data yet'}</div>`;
 }
 
-// ── 1. Monthly trend line ─────────────────────────────────────────────────────
+// ── 1. Monthly trend line/bar ─────────────────────────────────────────────────
 (function() {
     if (!monthlyData.length) { noDataMsg('trendChart', 'No registration data yet'); return; }
     const ctx = document.getElementById('trendChart').getContext('2d');
+    const useBar = monthlyData.length < 2;
     const grad = ctx.createLinearGradient(0, 0, 0, 180);
-    grad.addColorStop(0, 'rgba(192,132,252,0.30)');
-    grad.addColorStop(1, 'rgba(192,132,252,0.01)');
+    grad.addColorStop(0, 'rgba(192,132,252,0.55)');
+    grad.addColorStop(1, 'rgba(192,132,252,0.10)');
     new Chart(ctx, {
-        type: 'line',
+        type: useBar ? 'bar' : 'line',
         data: {
             labels: monthlyData.map(r => r[0]),
             datasets: [{
                 label: 'Registrations',
                 data: monthlyData.map(r => r[1]),
                 borderColor: '#9d5cf5',
-                backgroundColor: grad,
+                backgroundColor: useBar ? grad : (function(){
+                    const g2 = ctx.createLinearGradient(0,0,0,180);
+                    g2.addColorStop(0,'rgba(192,132,252,0.30)');
+                    g2.addColorStop(1,'rgba(192,132,252,0.01)');
+                    return g2;
+                })(),
                 fill: true,
                 tension: 0.42,
                 pointBackgroundColor: '#f5b8dc',
@@ -264,10 +270,14 @@ function noDataMsg(canvasId, msg) {
                 pointRadius: 5,
                 pointHoverRadius: 7,
                 borderWidth: 2.5,
+                borderRadius: useBar ? 6 : 0,
+                barPercentage: 0.3,
+                categoryPercentage: 0.5,
             }]
         },
         options: {
             ...BASE_OPTS,
+            plugins: { ...BASE_OPTS.plugins, legend: { display: false } },
             scales: {
                 x: { grid: gridOpts() },
                 y: { grid: gridOpts(), beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }

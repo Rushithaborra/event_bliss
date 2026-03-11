@@ -17,16 +17,25 @@
 
         {% with messages = get_flashed_messages() %}
         {% if messages %}
-        <div class="flash-message">{{ messages[0] }}</div>
+        <div class="flash-message" style="margin-bottom:14px;">
+            {% for msg in messages %}<p style="margin:0;">{{ msg }}</p>{% endfor %}
+        </div>
         {% endif %}
         {% endwith %}
 
-        <form method="POST">
-            <label>Email</label>
-            <input type="email" name="email" placeholder="you@example.com" required>
+        {% if error %}
+        <div class="error-msg" style="margin-bottom:12px;">{{ error }}</div>
+        {% endif %}
 
-            <label>Password</label>
-            <input type="password" name="password" placeholder="Your password" required>
+        <form method="POST">
+            <label>Username or Email <span style="color:#e07aad;">*</span></label>
+            <input type="text" name="username" placeholder="Your username or email" required>
+
+            <label>Password <span style="color:#e07aad;">*</span></label>
+            <div style="position:relative; margin-bottom:15px;">
+                <input type="password" id="pw-login" name="password" placeholder="Your password" required style="padding-right:42px; margin-bottom:0;">
+                <button type="button" onclick="togglePw('pw-login',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
+            </div>
 
             <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Login 🌸</button>
         </form>
@@ -57,5 +66,12 @@
         </div>
     </div>
 </div>
+<script>
+function togglePw(id, btn) {
+    const inp = document.getElementById(id);
+    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+    else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+</script>
 </body>
 </html>

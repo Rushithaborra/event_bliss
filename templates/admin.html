@@ -15,28 +15,94 @@
         <h2 style="font-size:26px; margin-bottom:6px; color:#7c3aed;">🔐 Admin Login</h2>
         <p class="subtitle" style="font-size:13px; color:#a78bca; margin-bottom:22px;">Access the admin dashboard</p>
 
-        {% if error %}
-        <div class="error-msg">{{ error }}</div>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-message" style="margin-bottom:14px;">
+            {% for msg in messages %}<p style="margin:0;">{{ msg }}</p>{% endfor %}
+        </div>
         {% endif %}
+        {% endwith %}
 
-        <form method="POST">
-            <label>Username</label>
-            <input type="text" name="username" placeholder="Admin username" required>
+        <!-- Username / Password login -->
+        <div id="tab-password">
+            {% if error %}
+            <div class="error-msg" style="margin-bottom:12px;">{{ error }}</div>
+            {% endif %}
 
-            <label>Password</label>
-            <input type="password" name="password" placeholder="Admin password" required>
+            <form method="POST">
+                <label>Username</label>
+                <input type="text" name="username" placeholder="Admin username" required>
 
-            <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Login →</button>
-        </form>
+                <label>Password</label>
+                <div style="position:relative; margin-bottom:15px;">
+                    <input type="password" id="pw-admin" name="password" placeholder="Admin password" required style="padding-right:42px; margin-bottom:0;">
+                    <button type="button" onclick="togglePw('pw-admin',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
+                </div>
 
-        <div style="text-align:center; margin-top:14px;">
-            <a href="/admin_forgot_password" style="font-size:13px; color:#7c3aed; text-decoration:none;">Forgot Password?</a>
+                <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Login →</button>
+            </form>
+
+            <div style="text-align:center; margin-top:14px;">
+                <a href="/admin_forgot_password" style="font-size:13px; color:#7c3aed; text-decoration:none;">Forgot Password?</a>
+            </div>
+
+            <div style="text-align:center; margin-top:14px;">
+                <button type="button" onclick="toggleEmailLogin()" style="background:none; border:none; color:#9d5cf5; cursor:pointer; font-size:13px; font-weight:600;">
+                    📧 Login via Email OTP instead
+                </button>
+            </div>
         </div>
 
-        <div style="text-align:center; margin-top:10px;">
+        <!-- Email OTP login (hidden by default) -->
+        <div id="tab-email" style="display:none;">
+            {% if otp_error %}
+            <div class="error-msg" style="margin-bottom:12px;">{{ otp_error }}</div>
+            {% endif %}
+
+            <form method="POST" action="/admin_email_otp">
+                <label>Registered Admin Email</label>
+                <input type="email" name="admin_otp_email" placeholder="your@email.com" required>
+
+                <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Send OTP 📧</button>
+            </form>
+
+            <div style="text-align:center; margin-top:14px;">
+                <button type="button" onclick="toggleEmailLogin()" style="background:none; border:none; color:#b59fd4; cursor:pointer; font-size:13px;">
+                    ← Back to username/password login
+                </button>
+            </div>
+        </div>
+
+        <div style="text-align:center; margin-top:18px;">
             <a href="/" class="btn-back">← Back to Home</a>
         </div>
     </div>
 </div>
+
+<script>
+{% if otp_error %}
+document.getElementById('tab-password').style.display = 'none';
+document.getElementById('tab-email').style.display = 'block';
+{% endif %}
+
+function toggleEmailLogin() {
+    const pw = document.getElementById('tab-password');
+    const em = document.getElementById('tab-email');
+    if (em.style.display === 'none') {
+        pw.style.display = 'none';
+        em.style.display = 'block';
+    } else {
+        em.style.display = 'none';
+        pw.style.display = 'block';
+    }
+}
+</script>
+<script>
+function togglePw(id, btn) {
+    const inp = document.getElementById(id);
+    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+    else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+</script>
 </body>
 </html>

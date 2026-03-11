@@ -17,17 +17,28 @@
 
         {% if error %}
         <div class="error-msg">{{ error }}</div>
+        {% if "already exists" in error %}
+        <div style="text-align:center; margin-bottom:14px;">
+            <a href="/student_login" class="primary-btn" style="display:inline-block; padding:10px 28px; text-decoration:none;">Login Instead →</a>
+        </div>
+        {% endif %}
         {% endif %}
 
         <form method="POST">
-            <label>Name</label>
+            <label>Full Name</label>
             <input type="text" name="name" placeholder="Your full name" required>
+
+            <label>Username <span style="color:#e07aad;">*</span></label>
+            <input type="text" name="username" placeholder="Choose a unique username" required>
 
             <label>Email</label>
             <input type="email" name="email" placeholder="you@example.com" required>
 
             <label>Password</label>
-            <input type="password" name="password" placeholder="Create a password" required>
+            <div style="position:relative; margin-bottom:15px;">
+                <input type="password" id="pw-reg" name="password" placeholder="Create a password" required style="padding-right:42px; margin-bottom:0;">
+                <button type="button" onclick="togglePw('pw-reg',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
+            </div>
 
             <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Register 🎉</button>
         </form>
@@ -37,5 +48,12 @@
         </div>
     </div>
 </div>
+<script>
+function togglePw(id, btn) {
+    const inp = document.getElementById(id);
+    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+    else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+</script>
 </body>
 </html>

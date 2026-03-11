@@ -21,6 +21,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["MAIL_SERVER"]   = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
 app.config["MAIL_PORT"]     = int(os.environ.get("MAIL_PORT", 587))
 app.config["MAIL_USE_TLS"]  = True
+app.config["MAIL_USE_SSL"]  = False
 app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
 app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_USERNAME")
@@ -99,6 +100,13 @@ try:
 except Exception:
     db.rollback()
 
+# Add username column to students if it doesn't exist yet
+try:
+    cursor.execute("ALTER TABLE students ADD COLUMN username VARCHAR(100) UNIQUE NULL")
+    db.commit()
+except Exception:
+    db.rollback()
+
 # Add student profile columns if they don't exist yet
 for _col, _def in [
     ("phone",    "VARCHAR(20)  NULL"),
@@ -164,19 +172,25 @@ def home():
 def register():
     if request.method == "POST":
         name     = request.form["name"]
+        username = request.form["username"].strip()
         email    = request.form["email"]
         password = request.form["password"]
 
-        if not name or not email or not password:
+        if not name or not username or not email or not password:
             abort(400)
 
         cursor.execute("SELECT * FROM students WHERE email = %s", (email,))
         if cursor.fetchone():
-            return render_template("register.html", error="Account already exists. Please login 💌")
+            return render_template("register.html", error="An account with this email already exists. Please login.")
+
+        cursor.execute("SELECT * FROM students WHERE username = %s", (username,))
+        if cursor.fetchone():
+            return render_template("register.html", error="That username is already taken. Please choose another.")
 
         otp = str(random.randint(100000, 999999))
         session["pending_registration"] = {
             "name": name,
+            "username": username,
             "email": email,
             "password": password,
             "otp": otp,
@@ -193,7 +207,12 @@ def register():
             f"If you did not sign up, ignore this email.\n\n"
             f"— Event Bliss Team"
         )
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except Exception as e:
+            app.logger.error(f"Registration OTP mail error: {e}")
+            session.pop("pending_registration", None)
+            return render_template("register.html", error="Failed to send verification email. Please check your email address and try again.")
         flash(f"A 6-digit OTP has been sent to {email}. Please check your inbox. 📧")
         return redirect("/verify_email")
 
@@ -228,8 +247,8 @@ def verify_email():
             return redirect("/student_login")
 
         cursor.execute(
-            "INSERT INTO students (name, email, password) VALUES (%s, %s, %s)",
-            (pending["name"], pending["email"], pending["password"]),
+            "INSERT INTO students (name, username, email, password) VALUES (%s, %s, %s, %s)",
+            (pending["name"], pending.get("username"), pending["email"], pending["password"]),
         )
         db.commit()
         session.pop("pending_registration", None)
@@ -249,10 +268,12 @@ def select_role():
 @app.route("/student_login", methods=["GET", "POST"])
 def student_login():
     if request.method == "POST":
-        email    = request.form["email"]
-        password = request.form["password"]
+        username_or_email = request.form["username"].strip()
+        password          = request.form["password"]
 
-        cursor.execute("SELECT * FROM students WHERE email=%s AND password=%s", (email, password))
+        # Try username first, then email
+        cursor.execute("SELECT * FROM students WHERE (username=%s OR email=%s) AND password=%s",
+                       (username_or_email, username_or_email, password))
         user = cursor.fetchone()
 
         if user:
@@ -264,7 +285,7 @@ def student_login():
             })
             return response
         else:
-            flash("Invalid email or password ❌")
+            return render_template("student_login.html", error="Invalid username/email or password. Please try again.")
 
     return render_template("student_login.html")
 
@@ -367,9 +388,77 @@ def admin():
             set_jwt_cookie(response, {"role": "admin", "admin_id": admin_user[0], "admin_username": admin_user[1]})
             return response
         else:
-            flash("Invalid Admin Credentials ❌")
+            return render_template("admin.html", error="Invalid credentials. Please check your username and password.")
 
     return render_template("admin.html")
+
+
+# ─── ADMIN EMAIL OTP LOGIN ─────────────────────────────────────────────────────
+@app.route("/admin_email_otp", methods=["POST"])
+def admin_email_otp():
+    email = (request.form.get("admin_otp_email") or "").strip()
+    if not email or "@" not in email:
+        return render_template("admin.html", otp_error="Please enter a valid email address.")
+    cursor.execute("SELECT * FROM admins WHERE email=%s", (email,))
+    admin_user = cursor.fetchone()
+    if not admin_user:
+        return render_template("admin.html", otp_error="No admin account found with that email.")
+    otp = str(random.randint(100000, 999999))
+    session["admin_email_login_otp"] = {
+        "admin_id":       admin_user[0],
+        "admin_username": admin_user[1],
+        "email":          email,
+        "otp":            otp,
+        "expires_at":     (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat(),
+    }
+    try:
+        msg = Message("Admin Login OTP — Event Bliss", recipients=[email])
+        msg.body = (
+            f"Hi {admin_user[1]},\n\n"
+            f"Your one-time login OTP for Event Bliss Admin is:\n\n"
+            f"  {otp}\n\n"
+            f"This OTP is valid for 10 minutes. Do not share it.\n\n"
+            f"If you did not attempt to log in, ignore this email.\n\n"
+            f"— Event Bliss Team"
+        )
+        mail.send(msg)
+        flash(f"OTP sent to {email}. Enter it below to login. 📧")
+        return redirect("/verify_admin_email_otp")
+    except Exception as e:
+        app.logger.error(f"Admin email OTP login error: {e}")
+        return render_template("admin.html", otp_error="Failed to send OTP. Please try again.")
+
+
+@app.route("/verify_admin_email_otp", methods=["GET", "POST"])
+def verify_admin_email_otp():
+    pending = session.get("admin_email_login_otp")
+    if not pending:
+        flash("No pending OTP login. Please try again.")
+        return redirect("/admin_login")
+
+    if request.method == "POST":
+        entered_otp = request.form["otp"].strip()
+        expires_at  = datetime.datetime.fromisoformat(pending["expires_at"])
+
+        if datetime.datetime.now(datetime.timezone.utc) > expires_at:
+            session.pop("admin_email_login_otp", None)
+            flash("OTP expired. Please try again. ⏰")
+            return redirect("/admin_login")
+
+        if entered_otp != pending["otp"]:
+            return render_template("verify_admin_email_otp.html",
+                                   email=pending["email"], error="Incorrect OTP. Please try again.")
+
+        session.pop("admin_email_login_otp", None)
+        response = make_response(redirect("/admin_dashboard"))
+        set_jwt_cookie(response, {
+            "role":           "admin",
+            "admin_id":       pending["admin_id"],
+            "admin_username": pending["admin_username"],
+        })
+        return response
+
+    return render_template("verify_admin_email_otp.html", email=pending["email"])
 
 
 # legacy alias kept so old links still work
@@ -807,6 +896,35 @@ def register_event(event_id):
         """, (student_id, event_id, first_name, middle_name, last_name, year, dept, section, roll_no, phone, notification_email))
         db.commit()
 
+        # ── Registration confirmation email ───────────────────────────────────
+        try:
+            cursor.execute("SELECT email, name FROM students WHERE student_id=%s", (student_id,))
+            s_info = cursor.fetchone()
+            if s_info:
+                conf_email = (notification_email or s_info[0] or "").strip()
+                if not conf_email:
+                    raise ValueError("No valid email address found for registration confirmation")
+                venue_display = event[3]
+                if event[8]:
+                    cursor.execute("SELECT venue_name FROM venues WHERE venue_id=%s", (event[8],))
+                    v_row = cursor.fetchone()
+                    if v_row:
+                        venue_display = v_row[0]
+                msg = Message("Registration Successful — Event Bliss", recipients=[conf_email])
+                msg.body = (
+                    f"Hi {first_name or s_info[1]},\n\n"
+                    f"You have successfully registered for the following event:\n\n"
+                    f"  Event  : {event[1]}\n"
+                    f"  Date   : {event[2]}\n"
+                    f"  Time   : {_fmt_time(event[5])}\n"
+                    f"  Venue  : {venue_display or 'TBD'}\n\n"
+                    f"We look forward to seeing you there!\n\n"
+                    f"— Event Bliss Team"
+                )
+                mail.send(msg)
+        except Exception as conf_err:
+            app.logger.error(f"Registration confirmation email error: {conf_err}")
+
         # Immediate reminder if event is within the next 24 hours
         try:
             ev_date = event[2]   # datetime.date
@@ -891,7 +1009,6 @@ def student_profile():
 
     if request.method == "POST":
         name    = request.form.get("name", "").strip()
-        phone   = request.form.get("phone", "").strip()
         year    = request.form.get("year", "").strip()
         dept    = request.form.get("dept", "").strip()
         section = request.form.get("section", "").strip()
@@ -903,9 +1020,9 @@ def student_profile():
         else:
             cursor.execute("""
                 UPDATE students
-                SET name=%s, phone=%s, year=%s, dept=%s, section=%s, roll_no=%s, bio=%s
+                SET name=%s, year=%s, dept=%s, section=%s, roll_no=%s, bio=%s
                 WHERE student_id=%s
-            """, (name, phone or None, year or None, dept or None,
+            """, (name, year or None, dept or None,
                   section or None, roll_no or None, bio or None, student_id))
             db.commit()
             flash("✅ Profile updated successfully!")
@@ -926,6 +1043,118 @@ def student_profile():
     event_count = cursor.fetchone()[0]
 
     return render_template("student_profile.html", student=student, event_count=event_count)
+
+
+# ─── EMAIL CHANGE OTP ─────────────────────────────────────────────────────────
+@app.route("/send_email_change_otp", methods=["POST"])
+def send_email_change_otp():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    new_email = (data.get("new_email") or "").strip().lower()
+    if not new_email or "@" not in new_email:
+        return jsonify({"ok": False, "error": "Invalid email address."})
+    cursor.execute("SELECT student_id FROM students WHERE email=%s", (new_email,))
+    if cursor.fetchone():
+        return jsonify({"ok": False, "error": "This email is already in use by another account."})
+    otp = str(random.randint(100000, 999999))
+    expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
+    session["email_change_otp"] = {"new_email": new_email, "otp": otp, "expires_at": expiry}
+    try:
+        msg = Message("Verify Your New Email — Event Bliss", recipients=[new_email])
+        msg.body = (
+            f"Hi,\n\n"
+            f"You requested to change your email on Event Bliss.\n\n"
+            f"Your verification OTP is:\n\n"
+            f"  {otp}\n\n"
+            f"This OTP is valid for 10 minutes. Do not share it.\n\n"
+            f"If you did not request this, ignore this email.\n\n"
+            f"— Event Bliss Team"
+        )
+        mail.send(msg)
+        return jsonify({"ok": True})
+    except Exception as e:
+        app.logger.error(f"Email change OTP error: {e}")
+        return jsonify({"ok": False, "error": "Could not send email. Check the address."})
+
+
+@app.route("/verify_email_change", methods=["POST"])
+def verify_email_change():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    entered = (data.get("otp") or "").strip()
+    pending = session.get("email_change_otp")
+    if not pending:
+        return jsonify({"ok": False, "error": "No OTP session. Please resend."})
+    if datetime.datetime.now(datetime.timezone.utc) > datetime.datetime.fromisoformat(pending["expires_at"]):
+        session.pop("email_change_otp", None)
+        return jsonify({"ok": False, "error": "OTP expired. Please resend."})
+    if entered != pending["otp"]:
+        return jsonify({"ok": False, "error": "Incorrect OTP."})
+    cursor.execute("UPDATE students SET email=%s WHERE student_id=%s", (pending["new_email"], user["user_id"]))
+    db.commit()
+    session.pop("email_change_otp", None)
+    return jsonify({"ok": True, "new_email": pending["new_email"]})
+
+
+# ─── PHONE CHANGE OTP ─────────────────────────────────────────────────────────
+@app.route("/send_phone_change_otp", methods=["POST"])
+def send_phone_change_otp():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    new_phone = (data.get("new_phone") or "").strip()
+    if not new_phone:
+        return jsonify({"ok": False, "error": "Phone number is required."})
+    cursor.execute("SELECT email FROM students WHERE student_id=%s", (user["user_id"],))
+    row = cursor.fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Student not found."})
+    current_email = row[0]
+    otp = str(random.randint(100000, 999999))
+    expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
+    session["phone_change_otp"] = {"new_phone": new_phone, "otp": otp, "expires_at": expiry}
+    try:
+        msg = Message("Verify Phone Number Change — Event Bliss", recipients=[current_email])
+        msg.body = (
+            f"Hi,\n\n"
+            f"You requested to change your phone number to {new_phone} on Event Bliss.\n\n"
+            f"Your verification OTP is:\n\n"
+            f"  {otp}\n\n"
+            f"This OTP is valid for 10 minutes. Do not share it.\n\n"
+            f"If you did not request this, ignore this email.\n\n"
+            f"— Event Bliss Team"
+        )
+        mail.send(msg)
+        return jsonify({"ok": True, "sent_to": current_email})
+    except Exception as e:
+        app.logger.error(f"Phone change OTP error: {e}")
+        return jsonify({"ok": False, "error": "Could not send OTP email."})
+
+
+@app.route("/verify_phone_change", methods=["POST"])
+def verify_phone_change():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    data = request.get_json(silent=True) or {}
+    entered = (data.get("otp") or "").strip()
+    pending = session.get("phone_change_otp")
+    if not pending:
+        return jsonify({"ok": False, "error": "No OTP session. Please resend."})
+    if datetime.datetime.now(datetime.timezone.utc) > datetime.datetime.fromisoformat(pending["expires_at"]):
+        session.pop("phone_change_otp", None)
+        return jsonify({"ok": False, "error": "OTP expired. Please resend."})
+    if entered != pending["otp"]:
+        return jsonify({"ok": False, "error": "Incorrect OTP."})
+    cursor.execute("UPDATE students SET phone=%s WHERE student_id=%s", (pending["new_phone"], user["user_id"]))
+    db.commit()
+    session.pop("phone_change_otp", None)
+    return jsonify({"ok": True, "new_phone": pending["new_phone"]})
 
 
 # ─── DELETE EVENT ─────────────────────────────────────────────────────────────
@@ -1064,33 +1293,6 @@ def permissions():
         can_edit_event         = "can_edit_event"         in request.form
         can_view_registrations = "can_view_registrations" in request.form
 
-        # Register admin account if email + password provided and not already in admins table
-        if admin_email and admin_password:
-            cursor.execute("SELECT admin_id FROM admins WHERE username=%s OR email=%s", (admin_username, admin_email))
-            existing = cursor.fetchone()
-            if not existing:
-                cursor.execute(
-                    "INSERT INTO admins (username, email, password) VALUES (%s, %s, %s)",
-                    (admin_username, admin_email, admin_password),
-                )
-                db.commit()
-                # Send credentials via email
-                msg = Message("Your Admin Account — Event Bliss", recipients=[admin_email])
-                msg.body = (
-                    f"Hi {admin_username},\n\n"
-                    f"You have been registered as an admin on Event Bliss.\n\n"
-                    f"Your login credentials:\n"
-                    f"  Username : {admin_username}\n"
-                    f"  Password : {admin_password}\n\n"
-                    f"Login at: http://127.0.0.1:5000/admin_login\n\n"
-                    f"Please change your password after first login.\n\n"
-                    f"— Event Bliss Team"
-                )
-                mail.send(msg)
-                flash(f"Admin '{admin_username}' registered and credentials sent to {admin_email} 📧")
-            else:
-                flash(f"Admin '{admin_username}' already exists — permissions updated.")
-
         # Save / update permissions
         cursor.execute("""
             INSERT INTO permissions (admin_username, can_create_event, can_delete_event, can_edit_event, can_view_registrations)
@@ -1101,8 +1303,38 @@ def permissions():
         """, (admin_username, can_create_event, can_delete_event, can_edit_event, can_view_registrations,
               can_create_event, can_delete_event, can_edit_event, can_view_registrations))
         db.commit()
-        if not admin_email:
-            flash("Permissions updated 💖")
+
+        # Register admin account if email + password provided
+        if admin_email and admin_password:
+            cursor.execute("SELECT admin_id FROM admins WHERE username=%s OR email=%s", (admin_username, admin_email))
+            existing = cursor.fetchone()
+            if not existing:
+                cursor.execute(
+                    "INSERT INTO admins (username, email, password) VALUES (%s, %s, %s)",
+                    (admin_username, admin_email, admin_password),
+                )
+                db.commit()
+                try:
+                    msg = Message("Your Admin Account — Event Bliss", recipients=[admin_email])
+                    msg.body = (
+                        f"Hi {admin_username},\n\n"
+                        f"You have been registered as an admin on Event Bliss.\n\n"
+                        f"Your login credentials:\n"
+                        f"  Username : {admin_username}\n"
+                        f"  Password : {admin_password}\n\n"
+                        f"Login at: http://127.0.0.1:5000/admin_login\n\n"
+                        f"Please change your password after first login.\n\n"
+                        f"— Event Bliss Team"
+                    )
+                    mail.send(msg)
+                    flash(f"Admin '{admin_username}' registered and permissions saved. Credentials sent to {admin_email}. 📧")
+                except Exception as e:
+                    app.logger.error(f"Admin credentials email error: {e}")
+                    flash(f"Admin '{admin_username}' registered and permissions saved. (Email delivery failed.) ⚠")
+            else:
+                flash(f"Permissions for '{admin_username}' updated successfully. 💖")
+        else:
+            flash(f"Permissions for '{admin_username}' saved successfully. ✅")
         return redirect("/permissions")
 
     cursor.execute("SELECT * FROM permissions")
