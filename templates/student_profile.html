@@ -77,6 +77,35 @@
             color: #9d82c0;
         }
         .lock-icon { font-size: 16px; opacity: 0.7; }
+        .change-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+        .change-row input {
+            flex: 1;
+            margin: 0;
+        }
+        .otp-row {
+            display: none;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+        .otp-row input {
+            flex: 1;
+            margin: 0;
+            letter-spacing: 4px;
+            font-weight: 600;
+        }
+        .inline-msg {
+            font-size: 12px;
+            margin-top: 5px;
+            min-height: 16px;
+        }
+        .inline-msg.ok  { color: #22c55e; }
+        .inline-msg.err { color: #ef4444; }
         .section-divider {
             font-size: 12px;
             font-weight: 600;
@@ -150,41 +179,102 @@
                 </div>
 
                 <div class="full-width">
-                    <label>Email <span style="font-weight:400; font-size:12px; color:#b59fd4;">(cannot be changed)</span></label>
-                    <div class="email-locked">
-                        <span class="lock-icon">🔒</span>
-                        {{ student.email }}
+                    <label>Email</label>
+                    <div class="email-locked" id="email-display">
+                        <span class="lock-icon">📧</span>
+                        <span id="current-email-text">{{ student.email }}</span>
+                        <button type="button" onclick="toggleEmailChange()" style="margin-left:auto; background:none; border:none; color:#9d5cf5; cursor:pointer; font-size:12px; font-weight:600;">Change</button>
+                    </div>
+                    <div id="email-change-section" style="display:none; margin-top:8px;">
+                        <div class="change-row">
+                            <input type="email" id="new-email-input" placeholder="Enter new email address">
+                            <button type="button" class="primary-btn" id="send-email-otp-btn" onclick="sendEmailOtp()" style="white-space:nowrap; padding:10px 16px;">Send OTP</button>
+                        </div>
+                        <div class="otp-row" id="email-otp-row">
+                            <input type="text" id="email-otp-input" placeholder="Enter 6-digit OTP" maxlength="6">
+                            <button type="button" class="primary-btn" onclick="verifyEmailOtp()" style="white-space:nowrap; padding:10px 16px;">Verify</button>
+                        </div>
+                        <div class="inline-msg" id="email-msg"></div>
+                        <button type="button" onclick="toggleEmailChange()" style="background:none; border:none; color:#b59fd4; font-size:12px; cursor:pointer; margin-top:4px;">Cancel</button>
                     </div>
                 </div>
 
                 <div class="full-width">
-                    <p class="section-divider">Academic Info</p>
+                    <p class="section-divider" style="display:flex; align-items:center; justify-content:space-between;">
+                        <span>Academic Info</span>
+                        <button type="button" id="academic-edit-btn" onclick="toggleAcademicEdit()" style="background:none; border:none; color:#9d5cf5; cursor:pointer; font-size:12px; font-weight:600; text-transform:none; letter-spacing:0;">✏️ Edit</button>
+                    </p>
                 </div>
 
-                <div>
-                    <label>Roll No</label>
-                    <input type="text" name="roll_no" value="{{ student.roll_no or '' }}" placeholder="e.g. 21CS001">
+                <!-- Locked view -->
+                <div id="academic-locked" class="full-width">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 24px;">
+                        <div>
+                            <p style="font-size:11px; color:#b59fd4; margin:0 0 2px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Roll No</p>
+                            <p style="font-size:14px; color:#7c3aed; margin:0; font-weight:500;" id="view-roll_no">{{ student.roll_no or '—' }}</p>
+                        </div>
+                        <div>
+                            <p style="font-size:11px; color:#b59fd4; margin:0 0 2px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Year</p>
+                            <p style="font-size:14px; color:#7c3aed; margin:0; font-weight:500;" id="view-year">{{ student.year or '—' }}</p>
+                        </div>
+                        <div>
+                            <p style="font-size:11px; color:#b59fd4; margin:0 0 2px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Department</p>
+                            <p style="font-size:14px; color:#7c3aed; margin:0; font-weight:500;" id="view-dept">{{ student.dept or '—' }}</p>
+                        </div>
+                        <div>
+                            <p style="font-size:11px; color:#b59fd4; margin:0 0 2px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Section</p>
+                            <p style="font-size:14px; color:#7c3aed; margin:0; font-weight:500;" id="view-section">{{ student.section or '—' }}</p>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label>Year</label>
-                    <input type="text" name="year" value="{{ student.year or '' }}" placeholder="e.g. 2nd Year">
-                </div>
-                <div>
-                    <label>Department</label>
-                    <input type="text" name="dept" value="{{ student.dept or '' }}" placeholder="e.g. CSE">
-                </div>
-                <div>
-                    <label>Section</label>
-                    <input type="text" name="section" value="{{ student.section or '' }}" placeholder="e.g. A">
+
+                <!-- Editable inputs (hidden by default) -->
+                <div id="academic-edit" style="display:none;" class="full-width">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 24px;">
+                        <div>
+                            <label>Roll No</label>
+                            <input type="text" name="roll_no" id="input-roll_no" value="{{ student.roll_no or '' }}" placeholder="e.g. 21CS001">
+                        </div>
+                        <div>
+                            <label>Year</label>
+                            <input type="text" name="year" id="input-year" value="{{ student.year or '' }}" placeholder="e.g. 2nd Year">
+                        </div>
+                        <div>
+                            <label>Department</label>
+                            <input type="text" name="dept" id="input-dept" value="{{ student.dept or '' }}" placeholder="e.g. CSE">
+                        </div>
+                        <div>
+                            <label>Section</label>
+                            <input type="text" name="section" id="input-section" value="{{ student.section or '' }}" placeholder="e.g. A">
+                        </div>
+                    </div>
+                    <button type="button" onclick="toggleAcademicEdit()" style="background:none; border:none; color:#b59fd4; font-size:12px; cursor:pointer; margin-top:6px;">Cancel</button>
                 </div>
 
                 <div class="full-width">
                     <p class="section-divider">Contact</p>
                 </div>
 
-                <div>
+                <div class="full-width">
                     <label>Phone</label>
-                    <input type="text" name="phone" value="{{ student.phone or '' }}" placeholder="10-digit number">
+                    <div class="email-locked" id="phone-display">
+                        <span class="lock-icon">📱</span>
+                        <span id="current-phone-text">{{ student.phone or 'Not set' }}</span>
+                        <button type="button" onclick="togglePhoneChange()" style="margin-left:auto; background:none; border:none; color:#9d5cf5; cursor:pointer; font-size:12px; font-weight:600;">Change</button>
+                    </div>
+                    <div id="phone-change-section" style="display:none; margin-top:8px;">
+                        <div class="change-row">
+                            <input type="text" id="new-phone-input" placeholder="Enter new phone number">
+                            <button type="button" class="primary-btn" id="send-phone-otp-btn" onclick="sendPhoneOtp()" style="white-space:nowrap; padding:10px 16px;">Send OTP</button>
+                        </div>
+                        <p style="font-size:11px; color:#b59fd4; margin:4px 0 0;">OTP will be sent to your registered email.</p>
+                        <div class="otp-row" id="phone-otp-row">
+                            <input type="text" id="phone-otp-input" placeholder="Enter 6-digit OTP" maxlength="6">
+                            <button type="button" class="primary-btn" onclick="verifyPhoneOtp()" style="white-space:nowrap; padding:10px 16px;">Verify</button>
+                        </div>
+                        <div class="inline-msg" id="phone-msg"></div>
+                        <button type="button" onclick="togglePhoneChange()" style="background:none; border:none; color:#b59fd4; font-size:12px; cursor:pointer; margin-top:4px;">Cancel</button>
+                    </div>
                 </div>
 
                 <div class="full-width">
@@ -208,5 +298,128 @@
         <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
     </div>
 </div>
+<script>
+function toggleEmailChange() {
+    const s = document.getElementById('email-change-section');
+    s.style.display = s.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('email-msg').textContent = '';
+    document.getElementById('email-otp-row').style.display = 'none';
+    document.getElementById('new-email-input').value = '';
+}
+
+function togglePhoneChange() {
+    const s = document.getElementById('phone-change-section');
+    s.style.display = s.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('phone-msg').textContent = '';
+    document.getElementById('phone-otp-row').style.display = 'none';
+    document.getElementById('new-phone-input').value = '';
+}
+
+function setMsg(id, text, isOk) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'inline-msg ' + (isOk ? 'ok' : 'err');
+}
+
+async function sendEmailOtp() {
+    const email = document.getElementById('new-email-input').value.trim();
+    if (!email) { setMsg('email-msg', 'Please enter a new email address.', false); return; }
+    document.getElementById('send-email-otp-btn').disabled = true;
+    setMsg('email-msg', 'Sending OTP...', true);
+    const res = await fetch('/send_email_change_otp', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({new_email: email})
+    });
+    const data = await res.json();
+    document.getElementById('send-email-otp-btn').disabled = false;
+    if (data.ok) {
+        setMsg('email-msg', `OTP sent to ${email}. Check your inbox.`, true);
+        document.getElementById('email-otp-row').style.display = 'flex';
+    } else {
+        setMsg('email-msg', data.error, false);
+    }
+}
+
+async function verifyEmailOtp() {
+    const otp = document.getElementById('email-otp-input').value.trim();
+    if (!otp) { setMsg('email-msg', 'Please enter the OTP.', false); return; }
+    const res = await fetch('/verify_email_change', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({otp})
+    });
+    const data = await res.json();
+    if (data.ok) {
+        setMsg('email-msg', '✅ Email updated successfully!', true);
+        document.getElementById('current-email-text').textContent = data.new_email;
+        document.getElementById('email-change-section').style.display = 'none';
+        document.getElementById('email-otp-row').style.display = 'none';
+    } else {
+        setMsg('email-msg', data.error, false);
+    }
+}
+
+async function sendPhoneOtp() {
+    const phone = document.getElementById('new-phone-input').value.trim();
+    if (!phone) { setMsg('phone-msg', 'Please enter a phone number.', false); return; }
+    document.getElementById('send-phone-otp-btn').disabled = true;
+    setMsg('phone-msg', 'Sending OTP to your registered email...', true);
+    const res = await fetch('/send_phone_change_otp', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({new_phone: phone})
+    });
+    const data = await res.json();
+    document.getElementById('send-phone-otp-btn').disabled = false;
+    if (data.ok) {
+        setMsg('phone-msg', `OTP sent to ${data.sent_to}. Check your inbox.`, true);
+        document.getElementById('phone-otp-row').style.display = 'flex';
+    } else {
+        setMsg('phone-msg', data.error, false);
+    }
+}
+
+function toggleAcademicEdit() {
+    const locked = document.getElementById('academic-locked');
+    const edit   = document.getElementById('academic-edit');
+    const btn    = document.getElementById('academic-edit-btn');
+    const isEditing = edit.style.display !== 'none';
+    if (isEditing) {
+        // Update locked view with current input values before hiding
+        const fields = ['roll_no', 'year', 'dept', 'section'];
+        fields.forEach(f => {
+            const val = document.getElementById('input-' + f).value.trim();
+            document.getElementById('view-' + f).textContent = val || '—';
+        });
+        locked.style.display = 'block';
+        edit.style.display   = 'none';
+        btn.textContent = '✏️ Edit';
+    } else {
+        locked.style.display = 'none';
+        edit.style.display   = 'block';
+        btn.textContent = '🔒 Lock';
+    }
+}
+
+async function verifyPhoneOtp() {
+    const otp = document.getElementById('phone-otp-input').value.trim();
+    if (!otp) { setMsg('phone-msg', 'Please enter the OTP.', false); return; }
+    const res = await fetch('/verify_phone_change', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({otp})
+    });
+    const data = await res.json();
+    if (data.ok) {
+        setMsg('phone-msg', '✅ Phone number updated successfully!', true);
+        document.getElementById('current-phone-text').textContent = data.new_phone;
+        document.getElementById('phone-change-section').style.display = 'none';
+        document.getElementById('phone-otp-row').style.display = 'none';
+    } else {
+        setMsg('phone-msg', data.error, false);
+    }
+}
+</script>
 </body>
 </html>

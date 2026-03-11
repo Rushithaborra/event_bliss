@@ -90,7 +90,10 @@
             <input type="email" name="admin_email" placeholder="admin@example.com">
 
             <label>Temporary Password <span style="font-weight:400; color:#b59fd4;">(sent to admin via email)</span></label>
-            <input type="password" name="admin_password" placeholder="Set a temporary password">
+            <div style="position:relative; margin-bottom:15px;">
+                <input type="password" id="pw-perm" name="admin_password" placeholder="Set a temporary password" style="padding-right:42px; margin-bottom:0;">
+                <button type="button" onclick="togglePw('pw-perm',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
+            </div>
 
             <div class="perm-grid">
                 <label class="perm-toggle">
@@ -163,6 +166,11 @@ function prefillForm(username, create, del, edit, view) {
     document.querySelector('input[name="can_edit_event"]').checked    = !!edit;
     document.querySelector('input[name="can_view_registrations"]').checked = !!view;
     document.querySelector('.form-card').scrollIntoView({ behavior: 'smooth' });
+}
+function togglePw(id, btn) {
+    const inp = document.getElementById(id);
+    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+    else { inp.type = 'password'; btn.textContent = '👁'; }
 }
 </script>
 </body>
