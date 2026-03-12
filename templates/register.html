@@ -35,9 +35,16 @@
             <input type="email" name="email" placeholder="you@example.com" required>
 
             <label>Password</label>
-            <div style="position:relative; margin-bottom:15px;">
-                <input type="password" id="pw-reg" name="password" placeholder="Create a password" required style="padding-right:42px; margin-bottom:0;">
+            <div style="position:relative; margin-bottom:6px;">
+                <input type="password" id="pw-reg" name="password" placeholder="Create a password" required style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);" oninput="checkRules('pw-reg','rules-reg')">
                 <button type="button" onclick="togglePw('pw-reg',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
+            </div>
+            <div id="rules-reg" style="font-size:11.5px; margin:0 0 14px 2px; line-height:2; display:none;">
+                <span data-rule="len"   style="color:#bbb; margin-right:14px;">✗ 8+ chars</span>
+                <span data-rule="upper" style="color:#bbb; margin-right:14px;">✗ Uppercase</span>
+                <span data-rule="lower" style="color:#bbb; margin-right:14px;">✗ Lowercase</span>
+                <span data-rule="num"   style="color:#bbb; margin-right:14px;">✗ Number</span>
+                <span data-rule="spec"  style="color:#bbb;">✗ Special (!@#…)</span>
             </div>
 
             <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Register 🎉</button>
@@ -54,6 +61,35 @@ function togglePw(id, btn) {
     if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
     else { inp.type = 'password'; btn.textContent = '👁'; }
 }
+const PW_CHECKS = {
+    len:   v => v.length >= 8,
+    upper: v => /[A-Z]/.test(v),
+    lower: v => /[a-z]/.test(v),
+    num:   v => /[0-9]/.test(v),
+    spec:  v => /[!@#$%^&*()\-_=+\[\]{};':",.<>?/\\|`~]/.test(v)
+};
+const PW_LABELS = { len:'8+ chars', upper:'Uppercase', lower:'Lowercase', num:'Number', spec:'Special (!@#…)' };
+function checkRules(inputId, rulesId) {
+    const v = document.getElementById(inputId).value;
+    const box = document.getElementById(rulesId);
+    box.style.display = v.length ? 'block' : 'none';
+    box.querySelectorAll('[data-rule]').forEach(el => {
+        const ok = PW_CHECKS[el.dataset.rule](v);
+        el.style.color = ok ? '#7c3aed' : '#bbb';
+        el.textContent = (ok ? '✓ ' : '✗ ') + PW_LABELS[el.dataset.rule];
+    });
+}
+function pwValid(inputId) {
+    const v = document.getElementById(inputId).value;
+    return Object.values(PW_CHECKS).every(fn => fn(v));
+}
+document.querySelector('form').addEventListener('submit', function(e) {
+    if (!pwValid('pw-reg')) {
+        e.preventDefault();
+        document.getElementById('rules-reg').style.display = 'block';
+        document.getElementById('pw-reg').focus();
+    }
+});
 </script>
 </body>
 </html>

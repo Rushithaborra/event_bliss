@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance — {{ event[0] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .attend-header {
+            display:flex; align-items:center; justify-content:space-between;
+            flex-wrap:wrap; gap:14px; margin-bottom:20px;
+        }
+        .attend-info { font-size:13px; color:#9d82c0; margin-top:4px; }
+        .summary-bar {
+            display:flex; gap:18px; align-items:center;
+            background:rgba(255,255,255,0.45); border-radius:14px;
+            padding:14px 22px; margin-bottom:22px; flex-wrap:wrap;
+        }
+        .summary-pill {
+            font-size:13px; font-weight:600; padding:6px 16px;
+            border-radius:20px;
+        }
+        .pill-present  { background:#d1fae5; color:#065f46; }
+        .pill-absent   { background:#fee2e2; color:#991b1b; }
+        .pill-total    { background:#ede9fe; color:#5b21b6; }
+        .progress-wrap { flex:1; min-width:140px; }
+        .progress-track { background:#e9d5ff; border-radius:8px; height:10px; }
+        .progress-fill  { background:#7c3aed; border-radius:8px; height:10px; transition:.4s; }
+
+        .attend-table th, .attend-table td { padding:10px 14px; text-align:left; font-size:13px; }
+        .attend-table th { background:rgba(124,58,237,.08); color:#7c3aed; font-weight:600; }
+        .attend-table tr:nth-child(even) { background:rgba(255,255,255,0.3); }
+        .attend-table tr:hover { background:rgba(237,233,254,.5); }
+
+        .check-wrap { display:flex; align-items:center; justify-content:center; gap:8px; }
+        .check-wrap input[type=checkbox] {
+            width:18px; height:18px; accent-color:#7c3aed; cursor:pointer;
+        }
+        .mark-all-bar {
+            display:flex; gap:10px; margin-bottom:12px; align-items:center;
+        }
+        .mark-all-bar button {
+            font-size:12px; padding:5px 14px; border:none; border-radius:14px;
+            cursor:pointer; font-family:Poppins,sans-serif; font-weight:600;
+        }
+        .btn-all-present { background:#d1fae5; color:#065f46; }
+        .btn-all-absent  { background:#fee2e2; color:#991b1b; }
+    </style>
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container">
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-message">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
+
+    <div class="attend-header">
+        <div>
+            <h2 style="margin:0; color:#7c3aed;">📋 Attendance Tracker</h2>
+            <div class="attend-info">
+                {{ event[0] }} &nbsp;|&nbsp; 📅 {{ event[1] }}
+                {% if event[2] %} &nbsp;|&nbsp; ⏰ {{ event[2] | fmt_time }}{% endif %}
+                {% if event[3] %} &nbsp;|&nbsp; 📍 {{ event[3] }}{% endif %}
+            </div>
+        </div>
+        <a href="/admin_events" class="btn-back">← Back to Events</a>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-bar">
+        <span class="summary-pill pill-total">👥 Total: {{ total }}</span>
+        <span class="summary-pill pill-present" id="count-present">✅ Present: {{ present_count }}</span>
+        <span class="summary-pill pill-absent"  id="count-absent">❌ Absent: {{ total - present_count }}</span>
+        <div class="progress-wrap">
+            <div style="font-size:11px; color:#9d82c0; margin-bottom:4px;" id="pct-label">
+                {% if total > 0 %}{{ ((present_count/total)*100)|int }}%{% else %}0%{% endif %} attendance
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progress-fill"
+                     style="width:{% if total > 0 %}{{ ((present_count/total)*100)|int }}{% else %}0{% endif %}%;"></div>
+            </div>
+        </div>
+    </div>
+
+    {% if students %}
+    <form method="POST">
+        <div class="card">
+            <div class="mark-all-bar">
+                <span style="font-size:13px; color:#7c3aed; font-weight:600;">Mark all:</span>
+                <button type="button" class="btn-all-present" onclick="markAll(true)">✅ All Present</button>
+                <button type="button" class="btn-all-absent"  onclick="markAll(false)">❌ All Absent</button>
+            </div>
+
+            <table class="attend-table" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Roll No</th>
+                        <th>Dept</th>
+                        <th>Section</th>
+                        <th>Year</th>
+                        <th style="text-align:center;">Present</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ s[1] }}</td>
+                        <td>{{ s[2] or '—' }}</td>
+                        <td>{{ s[3] or '—' }}</td>
+                        <td>{{ s[4] or '—' }}</td>
+                        <td>{{ s[5] or '—' }}</td>
+                        <td>
+                            <div class="check-wrap">
+                                <input type="checkbox" name="present" value="{{ s[0] }}"
+                                       {% if s[6] %}checked{% endif %}
+                                       onchange="updateSummary()">
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="text-align:center; margin-top:20px;">
+            <button type="submit" class="primary-btn" style="padding:12px 40px;">
+                💾 Save Attendance
+            </button>
+        </div>
+    </form>
+
+    {% else %}
+    <div class="card" style="text-align:center; padding:40px; color:#9d82c0;">
+        No students registered for this event.
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+const TOTAL = {{ total }};
+
+function updateSummary() {
+    const checked = document.querySelectorAll('input[name="present"]:checked').length;
+    const absent  = TOTAL - checked;
+    document.getElementById('count-present').textContent = '✅ Present: ' + checked;
+    document.getElementById('count-absent').textContent  = '❌ Absent: '  + absent;
+    const pct = TOTAL > 0 ? Math.round((checked / TOTAL) * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('pct-label').textContent = pct + '% attendance';
+}
+
+function markAll(present) {
+    document.querySelectorAll('input[name="present"]').forEach(cb => cb.checked = present);
+    updateSummary();
+}
+</script>
+</body>
+</html>

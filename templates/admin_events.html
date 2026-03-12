@@ -4,6 +4,24 @@
     <title>All Events — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .tab-bar { display:flex; gap:10px; margin-bottom:20px; }
+        .tab-btn {
+            padding:8px 22px; border:none; border-radius:20px; cursor:pointer;
+            font-family:Poppins,sans-serif; font-size:13px; font-weight:600;
+            background:rgba(255,255,255,0.3); color:#7c3aed; transition:.2s;
+        }
+        .tab-btn.active { background:#7c3aed; color:#fff; }
+        .tab-panel { display:none; }
+        .tab-panel.active { display:block; }
+        .badge {
+            display:inline-block; font-size:11px; padding:2px 8px;
+            border-radius:10px; margin-left:6px; font-weight:600;
+        }
+        .badge-upcoming { background:#e0f0ff; color:#3b82f6; }
+        .badge-completed { background:#ede9fe; color:#7c3aed; }
+        .attend-summary { font-size:12px; color:#9d82c0; }
+    </style>
 </head>
 <body>
 <div class="bg-blob blob1"></div>
@@ -13,50 +31,127 @@
 <div class="container">
     <h2>💌 All Events</h2>
 
-    <div class="card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Event Name</th>
-                    <th>Date</th>
-                    <th>Venue</th>
-                    <th>Organiser</th>
-                    <th>Seats</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for event in events %}
-                <tr>
-                    <td>{{ event[1] }}</td>
-                    <td>{{ event[2] }}</td>
-                    <td>{{ event[3] or '—' }}</td>
-                    <td>{{ event[5] or '—' }}</td>
-                    <td>{{ event[4] }}</td>
-                    <td style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
-                        {% if perms.can_view_registrations %}
-                            <a href="/admin/event/{{ event[0] }}" class="btn-action">👥 Registrations</a>
-                            <a href="/admin/event/{{ event[0] }}/rsvps" class="btn-action">💌 RSVPs</a>
-                        {% endif %}
-                        {% if perms.can_edit_event %}
-                            <a href="/edit_event/{{ event[0] }}" class="btn-action">✏️ Edit</a>
-                        {% endif %}
-                        {% if perms.can_delete_event %}
-                            <a href="/delete_event/{{ event[0] }}"
-                               class="btn-action btn-action-danger"
-                               onclick="return confirm('Delete this event?')">🗑 Delete</a>
-                        {% endif %}
-                        <a href="/rsvp/{{ event[0] }}" target="_blank" class="btn-action">🔗 RSVP Link</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('upcoming',this)">
+            📅 Upcoming <span class="badge badge-upcoming">{{ upcoming_events|length }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('completed',this)">
+            ✅ Completed <span class="badge badge-completed">{{ completed_events|length }}</span>
+        </button>
+    </div>
+
+    <!-- UPCOMING EVENTS -->
+    <div id="tab-upcoming" class="tab-panel active">
+        <div class="card">
+            {% if upcoming_events %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Event Name</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Venue</th>
+                        <th>Organiser</th>
+                        <th>Seats</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in upcoming_events %}
+                    <tr>
+                        <td>{{ event[1] }}</td>
+                        <td>{{ event[2] }}</td>
+                        <td>{{ event[3] | fmt_time }}</td>
+                        <td>{{ event[4] or '—' }}</td>
+                        <td>{{ event[6] or '—' }}</td>
+                        <td>{{ event[5] }}</td>
+                        <td style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                            {% if perms.can_view_registrations %}
+                                <a href="/admin/event/{{ event[0] }}" class="btn-action">👥 Registrations</a>
+                                <a href="/admin/event/{{ event[0] }}/rsvps" class="btn-action">💌 RSVPs</a>
+                            {% endif %}
+                            {% if perms.can_edit_event %}
+                                <a href="/edit_event/{{ event[0] }}" class="btn-action">✏️ Edit</a>
+                            {% endif %}
+                            {% if perms.can_delete_event %}
+                                <a href="/delete_event/{{ event[0] }}"
+                                   class="btn-action btn-action-danger"
+                                   onclick="return confirm('Delete this event?')">🗑 Delete</a>
+                            {% endif %}
+                            <a href="/rsvp/{{ event[0] }}" target="_blank" class="btn-action">🔗 RSVP Link</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="text-align:center; color:#9d82c0; padding:30px;">No upcoming events.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- COMPLETED EVENTS -->
+    <div id="tab-completed" class="tab-panel">
+        <div class="card">
+            {% if completed_events %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Event Name</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Venue</th>
+                        <th>Organiser</th>
+                        <th>Registered</th>
+                        <th>Attended</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in completed_events %}
+                    <tr>
+                        <td>{{ event[1] }}</td>
+                        <td>{{ event[2] }}</td>
+                        <td>{{ event[3] | fmt_time }}</td>
+                        <td>{{ event[4] or '—' }}</td>
+                        <td>{{ event[6] or '—' }}</td>
+                        <td>{{ event[7] }}</td>
+                        <td>
+                            {{ event[8] }} / {{ event[7] }}
+                            {% if event[7] > 0 %}
+                            <div style="background:#e9d5ff;border-radius:6px;height:6px;margin-top:4px;width:80px;">
+                                <div style="background:#7c3aed;border-radius:6px;height:6px;width:{{ ((event[8]/event[7])*100)|int }}%;"></div>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+                            {% if perms.can_view_registrations %}
+                                <a href="/admin/event/{{ event[0] }}" class="btn-action">👥 Registrations</a>
+                            {% endif %}
+                            <a href="/admin_attendance/{{ event[0] }}" class="btn-action" style="background:#7c3aed;color:#fff;">📋 Attendance</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="text-align:center; color:#9d82c0; padding:30px;">No completed events yet.</p>
+            {% endif %}
+        </div>
     </div>
 
     <div class="card-top">
         <a href="{{ url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
     </div>
 </div>
+
+<script>
+function switchTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+}
+</script>
 </body>
 </html>

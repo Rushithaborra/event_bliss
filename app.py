@@ -182,7 +182,9 @@ try:
             registration_id INT NOT NULL,
             is_present TINYINT(1) DEFAULT 0,
             marked_at TIMESTAMP NULL,
-            UNIQUE KEY uq_attendance (event_id, registration_id)
+            UNIQUE KEY uq_attendance (event_id, registration_id),
+            FOREIGN KEY (event_id) REFERENCES events(event_id),
+            FOREIGN KEY (registration_id) REFERENCES registrations(reg_id)
         )
     """)
     db.commit()
