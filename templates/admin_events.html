@@ -31,6 +31,12 @@
 <div class="container">
     <h2>💌 All Events</h2>
 
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-message">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
+
     <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('upcoming',this)">
             📅 Upcoming <span class="badge badge-upcoming">{{ upcoming_events|length }}</span>
@@ -151,6 +157,12 @@ function switchTab(name, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     btn.classList.add('active');
+}
+// Auto-switch tab if ?tab= param is set
+const urlTab = new URLSearchParams(window.location.search).get('tab');
+if (urlTab) {
+    const btn = document.querySelector(`.tab-btn[onclick*="${urlTab}"]`);
+    if (btn) switchTab(urlTab, btn);
 }
 </script>
 </body>

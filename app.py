@@ -137,9 +137,7 @@ try:
             registration_id INT NOT NULL,
             is_present TINYINT(1) DEFAULT 0,
             marked_at TIMESTAMP NULL,
-            UNIQUE KEY uq_attendance (event_id, registration_id),
-            FOREIGN KEY (event_id) REFERENCES events(event_id),
-            FOREIGN KEY (registration_id) REFERENCES registrations(registration_id)
+            UNIQUE KEY uq_attendance (event_id, registration_id)
         )
     """)
     db.commit()
@@ -732,19 +730,16 @@ def admin_events():
     """)
     upcoming_events = cursor.fetchall()
 
-    # Completed (past) events with registration count
+    # Completed (past) events with registration + attendance counts via subqueries
     cursor.execute("""
         SELECT events.event_id, events.event_name, events.event_date, events.event_time,
                COALESCE(venues.venue_name, events.venue) AS venue_display,
                events.max_seats, events.organiser,
-               COUNT(registrations.event_id) AS registered,
-               COUNT(attendance.attendance_id) AS attended
+               (SELECT COUNT(*) FROM registrations WHERE registrations.event_id = events.event_id) AS registered,
+               (SELECT COUNT(*) FROM attendance WHERE attendance.event_id = events.event_id AND attendance.is_present = 1) AS attended
         FROM events
         LEFT JOIN venues ON events.venue_id = venues.venue_id
-        LEFT JOIN registrations ON events.event_id = registrations.event_id
-        LEFT JOIN attendance ON events.event_id = attendance.event_id AND attendance.is_present = 1
         WHERE events.event_date < CURDATE()
-        GROUP BY events.event_id
         ORDER BY events.event_date DESC
     """)
     completed_events = cursor.fetchall()
@@ -763,7 +758,7 @@ def admin_attendance(event_id):
 
     if request.method == "POST":
         present_ids = set(request.form.getlist("present"))
-        cursor.execute("SELECT registration_id FROM registrations WHERE event_id=%s", (event_id,))
+        cursor.execute("SELECT reg_id FROM registrations WHERE event_id=%s", (event_id,))
         all_reg_ids = [r[0] for r in cursor.fetchall()]
         for reg_id in all_reg_ids:
             is_present = 1 if str(reg_id) in present_ids else 0
@@ -774,7 +769,7 @@ def admin_attendance(event_id):
             """, (event_id, reg_id, is_present, is_present))
         db.commit()
         flash("Attendance saved successfully! ✅")
-        return redirect(f"/admin_attendance/{event_id}")
+        return redirect("/admin_events?tab=completed")
 
     cursor.execute("""
         SELECT events.event_name, events.event_date, events.event_time,
@@ -786,12 +781,12 @@ def admin_attendance(event_id):
     event = cursor.fetchone()
 
     cursor.execute("""
-        SELECT r.registration_id,
+        SELECT r.reg_id,
                CONCAT(r.first_name, ' ', COALESCE(r.middle_name,''), ' ', r.last_name) AS full_name,
                r.roll_no, r.dept, r.section, r.year,
                COALESCE(a.is_present, 0) AS is_present
         FROM registrations r
-        LEFT JOIN attendance a ON r.registration_id = a.registration_id AND a.event_id = %s
+        LEFT JOIN attendance a ON r.reg_id = a.registration_id AND a.event_id = %s
         WHERE r.event_id = %s
         ORDER BY r.roll_no
     """, (event_id, event_id))
