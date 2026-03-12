@@ -7,13 +7,41 @@ import jwt
 import datetime
 import os
 import random
+import re
 import atexit
 from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv(override=True)
 
+def validate_password(pw):
+    """Return error string or None if password meets all requirements."""
+    if len(pw) < 8:
+        return "Password must be at least 8 characters."
+    if not re.search(r'[A-Z]', pw):
+        return "Password must contain at least one uppercase letter."
+    if not re.search(r'[a-z]', pw):
+        return "Password must contain at least one lowercase letter."
+    if not re.search(r'[0-9]', pw):
+        return "Password must contain at least one number."
+    if not re.search(r'[!@#$%^&*()\-_=+\[\]{};\':",.<>?/\\|`~]', pw):
+        return "Password must contain at least one special character (!@#$%…)."
+    return None
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback_secret")
+
+@app.template_filter('fmt_time')
+def fmt_time(t):
+    """Format a TIME value (timedelta or time) as 12-hour HH:MM AM/PM."""
+    if t is None:
+        return '—'
+    if hasattr(t, 'strftime'):
+        return t.strftime('%I:%M %p')
+    # MySQL returns TIME as timedelta
+    total = int(t.total_seconds())
+    h, m = total // 3600, (total % 3600) // 60
+    period = 'AM' if h < 12 else 'PM'
+    return f"{h % 12 or 12:02d}:{m:02d} {period}"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
@@ -100,6 +128,24 @@ try:
 except Exception:
     db.rollback()
 
+# Create attendance table if it doesn't exist
+try:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS attendance (
+            attendance_id INT AUTO_INCREMENT PRIMARY KEY,
+            event_id INT NOT NULL,
+            registration_id INT NOT NULL,
+            is_present TINYINT(1) DEFAULT 0,
+            marked_at TIMESTAMP NULL,
+            UNIQUE KEY uq_attendance (event_id, registration_id),
+            FOREIGN KEY (event_id) REFERENCES events(event_id),
+            FOREIGN KEY (registration_id) REFERENCES registrations(registration_id)
+        )
+    """)
+    db.commit()
+except Exception:
+    db.rollback()
+
 # Add username column to students if it doesn't exist yet
 try:
     cursor.execute("ALTER TABLE students ADD COLUMN username VARCHAR(100) UNIQUE NULL")
@@ -178,6 +224,10 @@ def register():
 
         if not name or not username or not email or not password:
             abort(400)
+
+        pw_error = validate_password(password)
+        if pw_error:
+            return render_template("register.html", error=pw_error)
 
         cursor.execute("SELECT * FROM students WHERE email = %s", (email,))
         if cursor.fetchone():
@@ -670,16 +720,87 @@ def admin_events():
     if not user or user.get("role") != "admin":
         return redirect("/admin_login")
 
+    # Upcoming events
     cursor.execute("""
-        SELECT events.event_id, events.event_name, events.event_date,
+        SELECT events.event_id, events.event_name, events.event_date, events.event_time,
                COALESCE(venues.venue_name, events.venue) AS venue_display,
                events.max_seats, events.organiser
         FROM events
         LEFT JOIN venues ON events.venue_id = venues.venue_id
+        WHERE events.event_date >= CURDATE()
+        ORDER BY events.event_date ASC, events.event_time ASC
     """)
-    events = cursor.fetchall()
+    upcoming_events = cursor.fetchall()
+
+    # Completed (past) events with registration count
+    cursor.execute("""
+        SELECT events.event_id, events.event_name, events.event_date, events.event_time,
+               COALESCE(venues.venue_name, events.venue) AS venue_display,
+               events.max_seats, events.organiser,
+               COUNT(registrations.event_id) AS registered,
+               COUNT(attendance.attendance_id) AS attended
+        FROM events
+        LEFT JOIN venues ON events.venue_id = venues.venue_id
+        LEFT JOIN registrations ON events.event_id = registrations.event_id
+        LEFT JOIN attendance ON events.event_id = attendance.event_id AND attendance.is_present = 1
+        WHERE events.event_date < CURDATE()
+        GROUP BY events.event_id
+        ORDER BY events.event_date DESC
+    """)
+    completed_events = cursor.fetchall()
+
     perms = get_admin_permissions()
-    return render_template("admin_events.html", events=events, perms=perms)
+    return render_template("admin_events.html", upcoming_events=upcoming_events,
+                           completed_events=completed_events, perms=perms)
+
+
+# ─── ATTENDANCE TRACKER ───────────────────────────────────────────────────────
+@app.route("/admin_attendance/<int:event_id>", methods=["GET", "POST"])
+def admin_attendance(event_id):
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return redirect("/admin_login")
+
+    if request.method == "POST":
+        present_ids = set(request.form.getlist("present"))
+        cursor.execute("SELECT registration_id FROM registrations WHERE event_id=%s", (event_id,))
+        all_reg_ids = [r[0] for r in cursor.fetchall()]
+        for reg_id in all_reg_ids:
+            is_present = 1 if str(reg_id) in present_ids else 0
+            cursor.execute("""
+                INSERT INTO attendance (event_id, registration_id, is_present, marked_at)
+                VALUES (%s, %s, %s, NOW())
+                ON DUPLICATE KEY UPDATE is_present=%s, marked_at=NOW()
+            """, (event_id, reg_id, is_present, is_present))
+        db.commit()
+        flash("Attendance saved successfully! ✅")
+        return redirect(f"/admin_attendance/{event_id}")
+
+    cursor.execute("""
+        SELECT events.event_name, events.event_date, events.event_time,
+               COALESCE(venues.venue_name, events.venue)
+        FROM events
+        LEFT JOIN venues ON events.venue_id = venues.venue_id
+        WHERE events.event_id = %s
+    """, (event_id,))
+    event = cursor.fetchone()
+
+    cursor.execute("""
+        SELECT r.registration_id,
+               CONCAT(r.first_name, ' ', COALESCE(r.middle_name,''), ' ', r.last_name) AS full_name,
+               r.roll_no, r.dept, r.section, r.year,
+               COALESCE(a.is_present, 0) AS is_present
+        FROM registrations r
+        LEFT JOIN attendance a ON r.registration_id = a.registration_id AND a.event_id = %s
+        WHERE r.event_id = %s
+        ORDER BY r.roll_no
+    """, (event_id, event_id))
+    students = cursor.fetchall()
+
+    present_count = sum(1 for s in students if s[6])
+    return render_template("attendance.html", event=event, event_id=event_id,
+                           students=students, present_count=present_count,
+                           total=len(students))
 
 
 # ─── CREATE EVENT ─────────────────────────────────────────────────────────────
@@ -770,11 +891,14 @@ def events():
         SELECT events.event_id, events.event_name, events.event_date,
                COALESCE(venues.venue_name, events.venue) AS venue_display,
                events.max_seats,
-               COUNT(registrations.event_id) AS registered
+               COUNT(registrations.event_id) AS registered,
+               events.event_time
         FROM events
         LEFT JOIN registrations ON events.event_id = registrations.event_id
         LEFT JOIN venues ON events.venue_id = venues.venue_id
+        WHERE events.event_date >= CURDATE()
         GROUP BY events.event_id
+        ORDER BY events.event_date ASC, events.event_time ASC
     """)
     all_events = cursor.fetchall()
 
@@ -1479,6 +1603,11 @@ def reset_password_form():
             flash("Passwords do not match ❌")
             return render_template("reset_password.html")
 
+        pw_error = validate_password(password)
+        if pw_error:
+            flash(pw_error + " ❌")
+            return render_template("reset_password.html")
+
         cursor.execute("UPDATE students SET password=%s WHERE student_id=%s", (password, student_id))
         db.commit()
         session.pop("reset_student_id", None)
@@ -1563,6 +1692,11 @@ def admin_reset_password_form():
 
         if password != confirm_password:
             flash("Passwords do not match ❌")
+            return render_template("admin_reset_password.html")
+
+        pw_error = validate_password(password)
+        if pw_error:
+            flash(pw_error + " ❌")
             return render_template("admin_reset_password.html")
 
         cursor.execute("UPDATE admins SET password=%s WHERE admin_id=%s", (password, admin_id))
