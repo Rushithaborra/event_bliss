@@ -82,16 +82,17 @@
 
     <div class="form-card">
         <h3>Register Admin &amp; Set Permissions</h3>
-        <form method="POST">
+        <style>.masked-pw { -webkit-text-security: disc; text-security: disc; }</style>
+        <form method="POST" autocomplete="off" data-form-type="other">
             <label>Admin Username</label>
-            <input type="text" name="admin_username" placeholder="e.g. john_admin" required>
+            <input type="text" name="admin_username" placeholder="e.g. john_admin" required autocomplete="off" data-form-type="other">
 
             <label>Admin Email <span style="font-weight:400; color:#b59fd4;">(required for new admin registration)</span></label>
-            <input type="email" name="admin_email" placeholder="admin@example.com">
+            <input type="email" name="admin_email" placeholder="admin@example.com" autocomplete="off" data-form-type="other">
 
             <label>Temporary Password <span style="font-weight:400; color:#b59fd4;">(sent to admin via email)</span></label>
             <div style="position:relative; margin-bottom:15px;">
-                <input type="password" id="pw-perm" name="admin_password" placeholder="Set a temporary password" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);">
+                <input type="text" id="pw-perm" name="admin_password" placeholder="Set a temporary password" autocomplete="off" data-form-type="other" class="masked-pw" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);">
                 <button type="button" onclick="togglePw('pw-perm',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
             </div>
 
@@ -169,8 +170,8 @@ function prefillForm(username, create, del, edit, view) {
 }
 function togglePw(id, btn) {
     const inp = document.getElementById(id);
-    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
-    else { inp.type = 'password'; btn.textContent = '👁'; }
+    if (inp.classList.contains('masked-pw')) { inp.classList.remove('masked-pw'); btn.textContent = '🙈'; }
+    else { inp.classList.add('masked-pw'); btn.textContent = '👁'; }
 }
 </script>
 </body>
