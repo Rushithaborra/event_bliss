@@ -29,13 +29,13 @@
             <div class="error-msg" style="margin-bottom:12px;">{{ error }}</div>
             {% endif %}
 
-            <form method="POST" autocomplete="off">
+            <form method="POST" autocomplete="off" data-form-type="other">
                 <label>Username</label>
-                <input type="text" name="username" placeholder="Admin username" required autocomplete="off">
+                <input type="text" name="username" placeholder="Admin username" required autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" data-form-type="other">
 
                 <label>Password</label>
                 <div style="position:relative; margin-bottom:15px;">
-                    <input type="password" id="pw-admin" name="password" placeholder="Admin password" required autocomplete="new-password" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);">
+                    <input type="text" id="pw-admin" name="password" placeholder="Admin password" required autocomplete="off" data-form-type="other" class="masked-pw" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);">
                     <button type="button" onclick="togglePw('pw-admin',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
                 </div>
 
@@ -79,6 +79,9 @@
     </div>
 </div>
 
+<style>
+.masked-pw { -webkit-text-security: disc; text-security: disc; }
+</style>
 <script>
 {% if otp_error %}
 document.getElementById('tab-password').style.display = 'none';
@@ -100,8 +103,13 @@ function toggleEmailLogin() {
 <script>
 function togglePw(id, btn) {
     const inp = document.getElementById(id);
-    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
-    else { inp.type = 'password'; btn.textContent = '👁'; }
+    if (inp.classList.contains('masked-pw')) {
+        inp.classList.remove('masked-pw');
+        btn.textContent = '🙈';
+    } else {
+        inp.classList.add('masked-pw');
+        btn.textContent = '👁';
+    }
 }
 </script>
 </body>

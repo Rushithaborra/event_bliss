@@ -21,6 +21,8 @@
                     <th>Event Name</th>
                     <th>Date</th>
                     <th>Venue</th>
+                    <th>Status</th>
+                    <th>Attendance</th>
                 </tr>
             </thead>
             <tbody>
@@ -29,6 +31,22 @@
                     <td>{{ event[0] }}</td>
                     <td>{{ event[1] }}</td>
                     <td>{{ event[2] or '—' }}</td>
+                    <td>
+                        {% if event[3] %}
+                        <span style="background:#f3e8ff; color:#7c3aed; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">✅ Completed</span>
+                        {% else %}
+                        <span style="background:#ecfdf5; color:#059669; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">🟢 Upcoming</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if event[4] == 1 %}
+                        <span style="background:#dcfce7; color:#15803d; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">✔ Attended</span>
+                        {% elif event[4] == 0 %}
+                        <span style="background:#fee2e2; color:#dc2626; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">✘ Not Attended</span>
+                        {% else %}
+                        <span style="background:#f3f4f6; color:#9ca3af; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">— Not Marked</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -27,13 +27,16 @@
         <div class="error-msg" style="margin-bottom:12px;">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" autocomplete="off">
+        <form method="POST" autocomplete="off" data-form-type="other" id="login-form">
             <label>Username or Email <span style="color:#e07aad;">*</span></label>
-            <input type="text" name="username" placeholder="Your username or email" required autocomplete="off">
+            <div style="position:relative; margin-bottom:15px;">
+                <input type="text" id="username-input" name="username" placeholder="Your username or email" required autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" data-form-type="other" style="margin-bottom:0;" oninput="showSuggestions(this.value)" onblur="hideSuggestions()">
+                <div id="suggestions-box" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1.5px solid #cbb4f4; border-radius:12px; z-index:100; overflow:hidden; box-shadow:0 4px 14px rgba(124,58,237,0.1);"></div>
+            </div>
 
             <label>Password <span style="color:#e07aad;">*</span></label>
             <div style="position:relative; margin-bottom:15px;">
-                <input type="password" id="pw-login" name="password" placeholder="Your password" required autocomplete="new-password" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);">
+                <input type="text" id="pw-login" name="password" placeholder="Your password" required autocomplete="off" data-form-type="other" class="masked-pw" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);">
                 <button type="button" onclick="togglePw('pw-login',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
             </div>
 
@@ -66,11 +69,55 @@
         </div>
     </div>
 </div>
+<style>
+.masked-pw { -webkit-text-security: disc; text-security: disc; }
+</style>
 <script>
 function togglePw(id, btn) {
     const inp = document.getElementById(id);
-    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
-    else { inp.type = 'password'; btn.textContent = '👁'; }
+    if (inp.classList.contains('masked-pw')) {
+        inp.classList.remove('masked-pw');
+        btn.textContent = '🙈';
+    } else {
+        inp.classList.add('masked-pw');
+        btn.textContent = '👁';
+    }
+}
+
+// Save username to localStorage on submit
+document.getElementById('login-form').addEventListener('submit', function() {
+    const username = document.getElementById('username-input').value.trim();
+    if (!username) return;
+    let saved = JSON.parse(localStorage.getItem('eb_usernames') || '[]');
+    if (!saved.includes(username)) {
+        saved.unshift(username);
+        if (saved.length > 5) saved = saved.slice(0, 5);
+        localStorage.setItem('eb_usernames', JSON.stringify(saved));
+    }
+});
+
+function showSuggestions(val) {
+    const box = document.getElementById('suggestions-box');
+    let saved = JSON.parse(localStorage.getItem('eb_usernames') || '[]');
+    const matches = val
+        ? saved.filter(u => u.toLowerCase().startsWith(val.toLowerCase()))
+        : saved;
+    if (!matches.length) { box.style.display = 'none'; return; }
+    box.innerHTML = matches.map(u =>
+        `<div onmousedown="selectUsername('${u}')" style="padding:10px 16px; cursor:pointer; font-size:13px; color:#4b2d8f;"
+              onmouseover="this.style.background='#f3eeff'" onmouseout="this.style.background='#fff'">${u}</div>`
+    ).join('');
+    box.style.display = 'block';
+}
+
+function hideSuggestions() {
+    setTimeout(() => { document.getElementById('suggestions-box').style.display = 'none'; }, 150);
+}
+
+function selectUsername(u) {
+    document.getElementById('username-input').value = u;
+    document.getElementById('suggestions-box').style.display = 'none';
+    document.getElementById('pw-login').focus();
 }
 </script>
 </body>
