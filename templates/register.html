@@ -24,19 +24,19 @@
         {% endif %}
         {% endif %}
 
-        <form method="POST">
+        <form method="POST" autocomplete="off">
             <label>Full Name</label>
-            <input type="text" name="name" placeholder="Your full name" required>
+            <input type="text" name="name" placeholder="Your full name" required autocomplete="off">
 
             <label>Username <span style="color:#e07aad;">*</span></label>
-            <input type="text" name="username" placeholder="Choose a unique username" required>
+            <input type="text" name="username" placeholder="Choose a unique username" required autocomplete="off">
 
             <label>Email</label>
-            <input type="email" name="email" placeholder="you@example.com" required>
+            <input type="email" name="email" placeholder="you@example.com" required autocomplete="off">
 
             <label>Password</label>
             <div style="position:relative; margin-bottom:6px;">
-                <input type="password" id="pw-reg" name="password" placeholder="Create a password" required style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);" oninput="checkRules('pw-reg','rules-reg')">
+                <input type="password" id="pw-reg" name="password" placeholder="Create a password" required autocomplete="new-password" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);" oninput="checkRules('pw-reg','rules-reg')">
                 <button type="button" onclick="togglePw('pw-reg',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
             </div>
             <div id="rules-reg" style="font-size:11.5px; margin:0 0 14px 2px; line-height:2; display:none;">

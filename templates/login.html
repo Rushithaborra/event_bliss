@@ -39,16 +39,16 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST">
+        <form method="POST" autocomplete="off">
             <input type="hidden" name="role" value="{{ role }}">
 
             {% if role == "student" %}
-                <input type="email" name="email" placeholder="Email" required>
-                <input type="password" name="password" placeholder="Password" required>
+                <input type="email" name="email" placeholder="Email" required autocomplete="off">
+                <input type="password" name="password" placeholder="Password" required autocomplete="new-password">
 
             {% elif role == "admin" %}
-                <input type="text" name="username" placeholder="Username" required>
-                <input type="password" name="password" placeholder="Password" required>
+                <input type="text" name="username" placeholder="Username" required autocomplete="off">
+                <input type="password" name="password" placeholder="Password" required autocomplete="new-password">
             {% endif %}
 
             <button type="submit" class="primary-btn">Login 🌸</button>
