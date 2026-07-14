@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, session, flash, make_response, abort, url_for, jsonify
 from flask_mail import Mail, Message
 from authlib.integrations.flask_client import OAuth
+from twilio.rest import Client as TwilioClient
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import mysql.connector
 import jwt
@@ -27,6 +29,16 @@ def validate_password(pw):
         return "Password must contain at least one special character (!@#$%…)."
     return None
 
+
+def normalize_social_url(url):
+    """Trim a social/profile link and prefix https:// if no scheme was given."""
+    url = (url or "").strip()
+    if not url:
+        return None
+    if not re.match(r"^https?://", url, re.IGNORECASE):
+        url = "https://" + url
+    return url
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback_secret")
 
@@ -45,6 +57,15 @@ def fmt_time(t):
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
+# ─── PROFILE PICTURE UPLOADS ───────────────────────────────────────────────────
+PROFILE_PIC_FOLDER = os.path.join(app.root_path, "static", "uploads", "profile_pics")
+os.makedirs(PROFILE_PIC_FOLDER, exist_ok=True)
+ALLOWED_PIC_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+MAX_PROFILE_PIC_BYTES = 3 * 1024 * 1024  # 3 MB
+
+def allowed_pic(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_PIC_EXTENSIONS
+
 # ─── MAIL CONFIG ───────────────────────────────────────────────────────────────
 app.config["MAIL_SERVER"]   = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
 app.config["MAIL_PORT"]     = int(os.environ.get("MAIL_PORT", 587))
@@ -54,6 +75,15 @@ app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
 app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_USERNAME")
 mail = Mail(app)
+
+# ─── SMS (TWILIO) CONFIG ───────────────────────────────────────────────────────
+TWILIO_ACCOUNT_SID   = os.environ.get("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN    = os.environ.get("TWILIO_AUTH_TOKEN")
+TWILIO_PHONE_NUMBER  = os.environ.get("TWILIO_PHONE_NUMBER")
+twilio_client = (
+    TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN else None
+)
 
 # ─── JWT CONFIG ───────────────────────────────────────────────────────────────
 JWT_SECRET    = os.environ.get("JWT_SECRET", "fallback_jwt_secret")
@@ -91,12 +121,16 @@ class _DB:
 
     def _connect(self):
         self._conn   = mysql.connector.connect(**_DB_CONFIG)
-        self._cursor = self._conn.cursor()
+        # buffered=True: results are read off the wire immediately on execute(),
+        # so the connection never sits with an "unread result" between the
+        # execute() call and a later fetchone()/fetchall() — which matters here
+        # because _ping() (called before every cursor attribute access) pings
+        # the live connection, and conn.ping() fails if a result is unread.
+        self._cursor = self._conn.cursor(buffered=True)
 
     def _ping(self):
         try:
             self._conn.ping(reconnect=True, attempts=3, delay=2)
-            self._cursor = self._conn.cursor()
         except Exception:
             self._connect()
 
@@ -200,18 +234,87 @@ except Exception:
 
 # Add student profile columns if they don't exist yet
 for _col, _def in [
-    ("phone",    "VARCHAR(20)  NULL"),
-    ("year",     "VARCHAR(20)  NULL"),
-    ("dept",     "VARCHAR(100) NULL"),
-    ("section",  "VARCHAR(20)  NULL"),
-    ("roll_no",  "VARCHAR(50)  NULL"),
-    ("bio",      "TEXT         NULL"),
+    ("phone",         "VARCHAR(20)  NULL"),
+    ("year",          "VARCHAR(20)  NULL"),
+    ("dept",          "VARCHAR(100) NULL"),
+    ("section",       "VARCHAR(20)  NULL"),
+    ("roll_no",       "VARCHAR(50)  NULL"),
+    ("bio",           "TEXT         NULL"),
+    ("profile_pic",   "VARCHAR(255) NULL"),
+    ("github_url",    "VARCHAR(255) NULL"),
+    ("linkedin_url",  "VARCHAR(255) NULL"),
+    ("portfolio_url", "VARCHAR(255) NULL"),
+    ("instagram_url", "VARCHAR(255) NULL"),
 ]:
     try:
         cursor.execute(f"ALTER TABLE students ADD COLUMN {_col} {_def}")
         db.commit()
     except Exception:
         db.rollback()
+
+# Create event discussion room table if it doesn't exist
+try:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS event_discussion_messages (
+            message_id  INT AUTO_INCREMENT PRIMARY KEY,
+            event_id    INT NOT NULL,
+            student_id  INT NULL,
+            admin_id    INT NULL,
+            message     TEXT NOT NULL,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_event_discussion_event (event_id)
+        )
+    """)
+    db.commit()
+except Exception:
+    db.rollback()
+
+# Create community Q&A tables if they don't exist
+try:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS community_questions (
+            question_id        INT AUTO_INCREMENT PRIMARY KEY,
+            student_id          INT NOT NULL,
+            title               VARCHAR(255) NOT NULL,
+            body                TEXT NOT NULL,
+            tags                VARCHAR(255) NULL,
+            status              VARCHAR(20) DEFAULT 'open',
+            accepted_answer_id  INT NULL,
+            created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    db.commit()
+except Exception:
+    db.rollback()
+
+try:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS community_answers (
+            answer_id   INT AUTO_INCREMENT PRIMARY KEY,
+            question_id INT NOT NULL,
+            student_id  INT NOT NULL,
+            body        TEXT NOT NULL,
+            flag_count  INT DEFAULT 0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_community_answers_question (question_id)
+        )
+    """)
+    db.commit()
+except Exception:
+    db.rollback()
+
+try:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS community_answer_flags (
+            flag_id    INT AUTO_INCREMENT PRIMARY KEY,
+            answer_id  INT NOT NULL,
+            student_id INT NOT NULL,
+            UNIQUE KEY uq_answer_flag (answer_id, student_id)
+        )
+    """)
+    db.commit()
+except Exception:
+    db.rollback()
 
 # ─── JWT HELPERS ──────────────────────────────────────────────────────────────
 def create_jwt(data: dict) -> str:
@@ -255,7 +358,7 @@ def set_jwt_cookie(response, data: dict):
 # ─── HOME ─────────────────────────────────────────────────────────────────────
 @app.route("/")
 def home():
-    return render_template("home.html")
+    return redirect("/select_role")
 
 
 # ─── REGISTER ─────────────────────────────────────────────────────────────────
@@ -412,60 +515,15 @@ def google_callback():
         cursor.execute("SELECT * FROM students WHERE email=%s", (email,))
         user = cursor.fetchone()
 
-    # Send OTP for email verification before granting access
-    otp = str(random.randint(100000, 999999))
-    session["google_verify_otp"] = {
-        "user_id":    user[0],
-        "user_name":  user[1],
-        "email":      email,
-        "otp":        otp,
-        "expires_at": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat(),
-    }
-    msg = Message("Verify Your Google Login — Event Bliss", recipients=[email])
-    msg.body = (
-        f"Hi {name},\n\n"
-        f"You just signed in with Google to Event Bliss.\n\n"
-        f"Your verification OTP is:\n\n"
-        f"  {otp}\n\n"
-        f"This OTP is valid for 10 minutes. Do not share it with anyone.\n\n"
-        f"If you did not attempt to log in, ignore this email.\n\n"
-        f"— Event Bliss Team"
-    )
-    mail.send(msg)
-    flash(f"A 6-digit OTP has been sent to {email}. Please check your inbox. 📧")
-    return redirect("/verify_google_otp")
-
-
-@app.route("/verify_google_otp", methods=["GET", "POST"])
-def verify_google_otp():
-    pending = session.get("google_verify_otp")
-    if not pending:
-        flash("No pending Google login. Please try again.")
-        return redirect("/student_login")
-
-    if request.method == "POST":
-        entered_otp = request.form["otp"].strip()
-        expires_at  = datetime.datetime.fromisoformat(pending["expires_at"])
-
-        if datetime.datetime.now(datetime.timezone.utc) > expires_at:
-            session.pop("google_verify_otp", None)
-            flash("OTP expired. Please sign in with Google again. ⏰")
-            return redirect("/student_login")
-
-        if entered_otp != pending["otp"]:
-            flash("Incorrect OTP. Please try again. ❌")
-            return render_template("verify_google_otp.html", email=pending["email"])
-
-        session.pop("google_verify_otp", None)
-        response = make_response(redirect("/dashboard"))
-        set_jwt_cookie(response, {
-            "user_id":   pending["user_id"],
-            "user_name": pending["user_name"],
-            "role":      "student",
-        })
-        return response
-
-    return render_template("verify_google_otp.html", email=pending["email"])
+    # Google has already verified this email address, so log the student
+    # straight into their dashboard — no extra OTP step needed.
+    response = make_response(redirect("/dashboard"))
+    set_jwt_cookie(response, {
+        "user_id":   user[0],
+        "user_name": user[1],
+        "role":      "student",
+    })
+    return response
 
 
 # ─── ADMIN LOGIN ──────────────────────────────────────────────────────────────
@@ -1155,7 +1213,7 @@ def my_events():
         return redirect("/student_login")
 
     cursor.execute("""
-        SELECT events.event_name, events.event_date, events.event_time, events.venue,
+        SELECT events.event_id, events.event_name, events.event_date, events.event_time, events.venue,
                a.is_present
         FROM registrations
         JOIN events ON registrations.event_id = events.event_id
@@ -1168,7 +1226,7 @@ def my_events():
     now = datetime.datetime.now()
     events = []
     for row in cursor.fetchall():
-        name, date, time_val, venue, is_present = row
+        event_id, name, date, time_val, venue, is_present = row
         # Build event datetime for comparison
         if date and time_val:
             if isinstance(time_val, datetime.timedelta):
@@ -1181,7 +1239,7 @@ def my_events():
         else:
             completed = False
         # attendance: None = not marked yet, 1 = attended, 0 = absent
-        events.append((name, date, venue, completed, is_present))
+        events.append((event_id, name, date, venue, completed, is_present))
 
     return render_template("my_events.html", events=events)
 
@@ -1196,34 +1254,74 @@ def student_profile():
     student_id = user["user_id"]
 
     if request.method == "POST":
-        name    = request.form.get("name", "").strip()
-        year    = request.form.get("year", "").strip()
-        dept    = request.form.get("dept", "").strip()
-        section = request.form.get("section", "").strip()
-        roll_no = request.form.get("roll_no", "").strip()
-        bio     = request.form.get("bio", "").strip()
+        name       = request.form.get("name", "").strip()
+        year       = request.form.get("year", "").strip()
+        dept       = request.form.get("dept", "").strip()
+        section    = request.form.get("section", "").strip()
+        roll_no    = request.form.get("roll_no", "").strip()
+        bio        = request.form.get("bio", "").strip()
+        github_url    = normalize_social_url(request.form.get("github_url"))
+        linkedin_url  = normalize_social_url(request.form.get("linkedin_url"))
+        portfolio_url = normalize_social_url(request.form.get("portfolio_url"))
+        instagram_url = normalize_social_url(request.form.get("instagram_url"))
 
         if not name:
             flash("⚠ Name cannot be empty.")
         else:
-            cursor.execute("""
-                UPDATE students
-                SET name=%s, year=%s, dept=%s, section=%s, roll_no=%s, bio=%s
-                WHERE student_id=%s
-            """, (name, year or None, dept or None,
-                  section or None, roll_no or None, bio or None, student_id))
+            profile_pic_file = request.files.get("profile_pic")
+            pic_filename = None
+            if profile_pic_file and profile_pic_file.filename:
+                if not allowed_pic(profile_pic_file.filename):
+                    flash("⚠ Profile picture must be a PNG, JPG, GIF or WEBP image.")
+                    return redirect("/student_profile")
+                profile_pic_file.seek(0, os.SEEK_END)
+                if profile_pic_file.tell() > MAX_PROFILE_PIC_BYTES:
+                    flash("⚠ Profile picture must be under 3 MB.")
+                    return redirect("/student_profile")
+                profile_pic_file.seek(0)
+                ext = profile_pic_file.filename.rsplit(".", 1)[1].lower()
+                pic_filename = secure_filename(f"student_{student_id}.{ext}")
+                profile_pic_file.save(os.path.join(PROFILE_PIC_FOLDER, pic_filename))
+
+            if pic_filename:
+                cursor.execute("""
+                    UPDATE students
+                    SET name=%s, year=%s, dept=%s, section=%s, roll_no=%s, bio=%s,
+                        github_url=%s, linkedin_url=%s, portfolio_url=%s, instagram_url=%s,
+                        profile_pic=%s
+                    WHERE student_id=%s
+                """, (name, year or None, dept or None,
+                      section or None, roll_no or None, bio or None,
+                      github_url, linkedin_url, portfolio_url, instagram_url,
+                      pic_filename, student_id))
+            else:
+                cursor.execute("""
+                    UPDATE students
+                    SET name=%s, year=%s, dept=%s, section=%s, roll_no=%s, bio=%s,
+                        github_url=%s, linkedin_url=%s, portfolio_url=%s, instagram_url=%s
+                    WHERE student_id=%s
+                """, (name, year or None, dept or None,
+                      section or None, roll_no or None, bio or None,
+                      github_url, linkedin_url, portfolio_url, instagram_url,
+                      student_id))
             db.commit()
             flash("✅ Profile updated successfully!")
 
-    cursor.execute(
-        "SELECT name, email, phone, year, dept, section, roll_no, bio FROM students WHERE student_id=%s",
-        (student_id,)
-    )
+    cursor.execute("""
+        SELECT name, email, phone, year, dept, section, roll_no, bio,
+               profile_pic, github_url, linkedin_url, portfolio_url, instagram_url
+        FROM students WHERE student_id=%s
+    """, (student_id,))
     row = cursor.fetchone()
     student = {
         "name":    row[0], "email":   row[1], "phone":   row[2],
         "year":    row[3], "dept":    row[4], "section": row[5],
         "roll_no": row[6], "bio":     row[7],
+        "profile_pic":   row[8],
+        "github_url":    row[9],
+        "linkedin_url":  row[10],
+        "portfolio_url": row[11],
+        "instagram_url": row[12],
     }
 
     # Count registered events
@@ -1294,34 +1392,26 @@ def send_phone_change_otp():
     user = get_current_user()
     if not user or user.get("role") != "student":
         return jsonify({"ok": False, "error": "Not logged in"}), 401
+    if not twilio_client or not TWILIO_PHONE_NUMBER:
+        return jsonify({"ok": False, "error": "SMS verification is not configured. Please contact support."})
     data = request.get_json(silent=True) or {}
     new_phone = (data.get("new_phone") or "").strip()
     if not new_phone:
         return jsonify({"ok": False, "error": "Phone number is required."})
-    cursor.execute("SELECT email FROM students WHERE student_id=%s", (user["user_id"],))
-    row = cursor.fetchone()
-    if not row:
-        return jsonify({"ok": False, "error": "Student not found."})
-    current_email = row[0]
     otp = str(random.randint(100000, 999999))
     expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
     session["phone_change_otp"] = {"new_phone": new_phone, "otp": otp, "expires_at": expiry}
     try:
-        msg = Message("Verify Phone Number Change — Event Bliss", recipients=[current_email])
-        msg.body = (
-            f"Hi,\n\n"
-            f"You requested to change your phone number to {new_phone} on Event Bliss.\n\n"
-            f"Your verification OTP is:\n\n"
-            f"  {otp}\n\n"
-            f"This OTP is valid for 10 minutes. Do not share it.\n\n"
-            f"If you did not request this, ignore this email.\n\n"
-            f"— Event Bliss Team"
+        twilio_client.messages.create(
+            body=f"Your Event Bliss verification code is {otp}. Valid for 10 minutes. Do not share it.",
+            from_=TWILIO_PHONE_NUMBER,
+            to=new_phone,
         )
-        mail.send(msg)
-        return jsonify({"ok": True, "sent_to": current_email})
+        return jsonify({"ok": True, "sent_to": new_phone})
     except Exception as e:
         app.logger.error(f"Phone change OTP error: {e}")
-        return jsonify({"ok": False, "error": "Could not send OTP email."})
+        session.pop("phone_change_otp", None)
+        return jsonify({"ok": False, "error": "Could not send OTP SMS. Check the phone number and try again."})
 
 
 @app.route("/verify_phone_change", methods=["POST"])
@@ -1343,6 +1433,381 @@ def verify_phone_change():
     db.commit()
     session.pop("phone_change_otp", None)
     return jsonify({"ok": True, "new_phone": pending["new_phone"]})
+
+
+# ─── SHARED IDENTITY HELPER (used by discussion room + community) ────────────
+def get_student_identity(student_id):
+    cursor.execute("""
+        SELECT name, profile_pic, github_url, linkedin_url, portfolio_url, instagram_url
+        FROM students WHERE student_id=%s
+    """, (student_id,))
+    row = cursor.fetchone()
+    if not row:
+        return {"name": "Deleted User", "profile_pic": None, "github_url": None,
+                "linkedin_url": None, "portfolio_url": None, "instagram_url": None, "is_admin": False}
+    return {
+        "name": row[0], "profile_pic": row[1], "github_url": row[2],
+        "linkedin_url": row[3], "portfolio_url": row[4], "instagram_url": row[5],
+        "is_admin": False,
+    }
+
+
+def get_admin_identity(admin_id):
+    cursor.execute("SELECT username FROM admins WHERE admin_id=%s", (admin_id,))
+    row = cursor.fetchone()
+    return {
+        "name": row[0] if row else "Admin", "profile_pic": None, "github_url": None,
+        "linkedin_url": None, "portfolio_url": None, "instagram_url": None, "is_admin": True,
+    }
+
+
+# ─── EVENT DISCUSSION ROOM ─────────────────────────────────────────────────────
+def _can_access_discussion(event_id, user):
+    if not user:
+        return False
+    if user.get("role") == "admin":
+        return True
+    if user.get("role") == "student":
+        cursor.execute(
+            "SELECT 1 FROM registrations WHERE student_id=%s AND event_id=%s",
+            (user["user_id"], event_id)
+        )
+        return cursor.fetchone() is not None
+    return False
+
+
+@app.route("/event/<int:event_id>/discussion")
+def event_discussion(event_id):
+    user = get_current_user()
+    if not user:
+        return redirect("/student_login")
+    if not _can_access_discussion(event_id, user):
+        flash("⚠ You need to be registered for this event to join its discussion room.")
+        return redirect("/my_events")
+
+    cursor.execute("SELECT event_id, event_name FROM events WHERE event_id=%s", (event_id,))
+    event_row = cursor.fetchone()
+    if not event_row:
+        abort(404)
+
+    return render_template(
+        "event_discussion.html",
+        event={"event_id": event_row[0], "event_name": event_row[1]},
+        is_admin=(user.get("role") == "admin"),
+    )
+
+
+@app.route("/event/<int:event_id>/discussion/messages")
+def event_discussion_messages(event_id):
+    user = get_current_user()
+    if not _can_access_discussion(event_id, user):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+
+    after = request.args.get("after", 0, type=int)
+    cursor.execute("""
+        SELECT message_id, student_id, admin_id, message, created_at
+        FROM event_discussion_messages
+        WHERE event_id=%s AND message_id > %s
+        ORDER BY message_id ASC
+    """, (event_id, after))
+    rows = cursor.fetchall()
+
+    messages = []
+    for message_id, student_id, admin_id, message, created_at in rows:
+        author = get_admin_identity(admin_id) if admin_id else get_student_identity(student_id)
+        messages.append({
+            "message_id": message_id,
+            "message": message,
+            "created_at": created_at.strftime("%b %d, %I:%M %p") if created_at else "",
+            "author": author,
+            "can_delete": user.get("role") == "admin",
+        })
+
+    return jsonify({"ok": True, "messages": messages})
+
+
+@app.route("/event/<int:event_id>/discussion/send", methods=["POST"])
+def event_discussion_send(event_id):
+    user = get_current_user()
+    if not _can_access_discussion(event_id, user):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+
+    data = request.get_json(silent=True) or {}
+    text = (data.get("message") or "").strip()
+    if not text:
+        return jsonify({"ok": False, "error": "Message cannot be empty."})
+    if len(text) > 2000:
+        return jsonify({"ok": False, "error": "Message is too long."})
+
+    if user.get("role") == "admin":
+        cursor.execute(
+            "INSERT INTO event_discussion_messages (event_id, admin_id, message) VALUES (%s, %s, %s)",
+            (event_id, user["admin_id"], text)
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO event_discussion_messages (event_id, student_id, message) VALUES (%s, %s, %s)",
+            (event_id, user["user_id"], text)
+        )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/event/<int:event_id>/discussion/delete/<int:message_id>", methods=["POST"])
+def event_discussion_delete(event_id, message_id):
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+
+    cursor.execute(
+        "DELETE FROM event_discussion_messages WHERE message_id=%s AND event_id=%s",
+        (message_id, event_id)
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+# ─── COMMUNITY Q&A ──────────────────────────────────────────────────────────────
+COMMUNITY_UNANSWERED_HOURS = 24
+
+@app.route("/community")
+def community():
+    user = get_current_user()
+    if not user or user.get("role") not in ("student", "admin"):
+        return redirect("/student_login")
+
+    tab = request.args.get("tab", "all")
+
+    cursor.execute("""
+        SELECT q.question_id, q.student_id, q.title, q.tags, q.status, q.created_at,
+               (SELECT COUNT(*) FROM community_answers a WHERE a.question_id = q.question_id) AS answer_count
+        FROM community_questions q
+        ORDER BY q.created_at DESC
+    """)
+    rows = cursor.fetchall()
+
+    now = datetime.datetime.now()
+    questions = []
+    for qid, student_id, title, tags, status, created_at, answer_count in rows:
+        needs_attention = (
+            answer_count == 0 and status == "open" and created_at is not None and
+            (now - created_at).total_seconds() > COMMUNITY_UNANSWERED_HOURS * 3600
+        )
+        questions.append({
+            "question_id": qid,
+            "author": get_student_identity(student_id),
+            "title": title,
+            "tags": [t.strip() for t in tags.split(",")] if tags else [],
+            "status": status,
+            "created_at": created_at,
+            "answer_count": answer_count,
+            "needs_attention": needs_attention,
+        })
+
+    if tab == "unanswered":
+        questions = [q for q in questions if q["answer_count"] == 0 and q["status"] == "open"]
+    elif tab == "resolved":
+        questions = [q for q in questions if q["status"] == "resolved"]
+
+    return render_template("community.html", questions=questions, tab=tab, is_admin=(user.get("role") == "admin"))
+
+
+@app.route("/community/ask", methods=["GET", "POST"])
+def community_ask():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return redirect("/student_login")
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        body = request.form.get("body", "").strip()
+        tags = request.form.get("tags", "").strip()
+        tags = ",".join(t.strip() for t in tags.split(",") if t.strip()) or None
+
+        if not title or not body:
+            flash("⚠ Please fill in both a title and a description of your doubt.")
+            return render_template("community_ask.html", title=title, body=body, tags=tags or "")
+
+        cursor.execute(
+            "INSERT INTO community_questions (student_id, title, body, tags) VALUES (%s, %s, %s, %s)",
+            (user["user_id"], title, body, tags)
+        )
+        db.commit()
+        cursor.execute("SELECT LAST_INSERT_ID()")
+        new_id = cursor.fetchone()[0]
+        flash("✅ Your question has been posted to the community!")
+        return redirect(f"/community/question/{new_id}")
+
+    return render_template("community_ask.html", title="", body="", tags="")
+
+
+@app.route("/community/question/<int:question_id>")
+def community_question(question_id):
+    user = get_current_user()
+    if not user or user.get("role") not in ("student", "admin"):
+        return redirect("/student_login")
+
+    cursor.execute("""
+        SELECT question_id, student_id, title, body, tags, status, accepted_answer_id, created_at
+        FROM community_questions WHERE question_id=%s
+    """, (question_id,))
+    row = cursor.fetchone()
+    if not row:
+        abort(404)
+    qid, asker_id, title, body, tags, status, accepted_answer_id, created_at = row
+    question = {
+        "question_id": qid,
+        "author": get_student_identity(asker_id),
+        "author_id": asker_id,
+        "title": title,
+        "body": body,
+        "tags": [t.strip() for t in tags.split(",")] if tags else [],
+        "status": status,
+        "accepted_answer_id": accepted_answer_id,
+        "created_at": created_at,
+    }
+
+    cursor.execute("""
+        SELECT answer_id, student_id, body, flag_count, created_at
+        FROM community_answers WHERE question_id=%s
+        ORDER BY created_at ASC
+    """, (question_id,))
+    answers = []
+    for answer_id, student_id, a_body, flag_count, a_created_at in cursor.fetchall():
+        answers.append({
+            "answer_id": answer_id,
+            "author": get_student_identity(student_id),
+            "author_id": student_id,
+            "body": a_body,
+            "flag_count": flag_count,
+            "created_at": a_created_at,
+            "is_accepted": answer_id == accepted_answer_id,
+            "disputed": flag_count >= 2,
+        })
+
+    is_asker = user.get("role") == "student" and user["user_id"] == asker_id
+    is_admin = user.get("role") == "admin"
+
+    return render_template(
+        "community_question.html",
+        question=question, answers=answers,
+        is_asker=is_asker, is_admin=is_admin,
+        current_student_id=user.get("user_id"),
+    )
+
+
+@app.route("/community/question/<int:question_id>/answer", methods=["POST"])
+def community_answer(question_id):
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return redirect("/student_login")
+
+    cursor.execute("SELECT question_id FROM community_questions WHERE question_id=%s", (question_id,))
+    if not cursor.fetchone():
+        abort(404)
+
+    body = request.form.get("body", "").strip()
+    if not body:
+        flash("⚠ Answer cannot be empty.")
+        return redirect(f"/community/question/{question_id}")
+
+    cursor.execute(
+        "INSERT INTO community_answers (question_id, student_id, body) VALUES (%s, %s, %s)",
+        (question_id, user["user_id"], body)
+    )
+    db.commit()
+    flash("✅ Your answer has been posted!")
+    return redirect(f"/community/question/{question_id}")
+
+
+@app.route("/community/answer/<int:answer_id>/accept", methods=["POST"])
+def community_answer_accept(answer_id):
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    cursor.execute("""
+        SELECT q.question_id, q.student_id
+        FROM community_answers a
+        JOIN community_questions q ON a.question_id = q.question_id
+        WHERE a.answer_id=%s
+    """, (answer_id,))
+    row = cursor.fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Answer not found."}), 404
+    question_id, asker_id = row
+    if asker_id != user["user_id"]:
+        return jsonify({"ok": False, "error": "Only the person who asked can accept an answer."}), 403
+
+    cursor.execute(
+        "UPDATE community_questions SET accepted_answer_id=%s, status='resolved' WHERE question_id=%s",
+        (answer_id, question_id)
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/community/answer/<int:answer_id>/flag", methods=["POST"])
+def community_answer_flag(answer_id):
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    cursor.execute("SELECT student_id FROM community_answers WHERE answer_id=%s", (answer_id,))
+    row = cursor.fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Answer not found."}), 404
+    if row[0] == user["user_id"]:
+        return jsonify({"ok": False, "error": "You can't flag your own answer."})
+
+    try:
+        cursor.execute(
+            "INSERT INTO community_answer_flags (answer_id, student_id) VALUES (%s, %s)",
+            (answer_id, user["user_id"])
+        )
+        cursor.execute(
+            "UPDATE community_answers SET flag_count = flag_count + 1 WHERE answer_id=%s",
+            (answer_id,)
+        )
+        db.commit()
+    except mysql.connector.IntegrityError:
+        db.rollback()
+        return jsonify({"ok": False, "error": "You already flagged this answer."})
+
+    cursor.execute("SELECT flag_count FROM community_answers WHERE answer_id=%s", (answer_id,))
+    return jsonify({"ok": True, "flag_count": cursor.fetchone()[0]})
+
+
+@app.route("/community/question/<int:question_id>/delete", methods=["POST"])
+def community_question_delete(question_id):
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+
+    cursor.execute("DELETE FROM community_answer_flags WHERE answer_id IN (SELECT answer_id FROM community_answers WHERE question_id=%s)", (question_id,))
+    cursor.execute("DELETE FROM community_answers WHERE question_id=%s", (question_id,))
+    cursor.execute("DELETE FROM community_questions WHERE question_id=%s", (question_id,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/community/answer/<int:answer_id>/delete", methods=["POST"])
+def community_answer_delete(answer_id):
+    user = get_current_user()
+    if not user or user.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+
+    cursor.execute("SELECT question_id FROM community_answers WHERE answer_id=%s", (answer_id,))
+    row = cursor.fetchone()
+    if row:
+        cursor.execute(
+            "UPDATE community_questions SET accepted_answer_id=NULL WHERE question_id=%s AND accepted_answer_id=%s",
+            (row[0], answer_id)
+        )
+    cursor.execute("DELETE FROM community_answer_flags WHERE answer_id=%s", (answer_id,))
+    cursor.execute("DELETE FROM community_answers WHERE answer_id=%s", (answer_id,))
+    db.commit()
+    return jsonify({"ok": True})
 
 
 # ─── DELETE EVENT ─────────────────────────────────────────────────────────────
@@ -1626,7 +2091,13 @@ def forgot_password():
                 f"If you did not request this, ignore this email.\n\n"
                 f"— Event Bliss Team"
             )
-            mail.send(msg)
+            try:
+                mail.send(msg)
+            except Exception as e:
+                app.logger.error(f"Student password reset OTP mail error: {e}")
+                session.pop("student_reset_otp", None)
+                flash("⚠ Could not send the reset email right now. Please try again in a few minutes.")
+                return render_template("forgot_password.html")
             flash("A 6-digit OTP has been sent to your email 📧")
             return redirect("/verify_reset_otp")
         else:
@@ -1716,7 +2187,13 @@ def admin_forgot_password():
                 f"If you did not request this, ignore this email.\n\n"
                 f"— Event Bliss Team"
             )
-            mail.send(msg)
+            try:
+                mail.send(msg)
+            except Exception as e:
+                app.logger.error(f"Admin password reset OTP mail error: {e}")
+                session.pop("admin_reset_otp", None)
+                flash("⚠ Could not send the reset email right now. Please try again in a few minutes.")
+                return render_template("admin_forgot_password.html")
             flash("A 6-digit OTP has been sent to your email 📧")
             return redirect("/verify_admin_reset_otp")
         else:

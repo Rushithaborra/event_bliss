@@ -26,6 +26,9 @@ config.py
 instance/
 .webassets-cache
 
+# User-uploaded content
+static/uploads/
+
 # OS
 .DS_Store
 .DS_Store?

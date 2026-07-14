@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ question.title }} — Community — Event Bliss</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .author-row { display:flex; align-items:center; gap:8px; }
+        .author-avatar-img { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+        .author-avatar-fallback {
+            width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#f5b8dc,#c084fc);
+            display:inline-flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:700;
+        }
+        .author-name { font-weight:600; color:#7c3aed; font-size:13px; }
+        .admin-badge { background:#7c3aed; color:#fff; font-size:10px; padding:1px 7px; border-radius:10px; margin-left:4px; font-weight:600; }
+        .social-links { display:inline-flex; gap:5px; font-size:13px; }
+        .social-links a { text-decoration:none; }
+        .q-tag {
+            display:inline-block; background:#f3e8ff; color:#7c3aed; font-size:11px;
+            padding:2px 10px; border-radius:12px; margin-right:6px; font-weight:600;
+        }
+        .answer-card {
+            border: 1px solid #f0e6ff; border-radius:14px; padding:16px; margin-top:14px;
+            background: rgba(255,255,255,0.5);
+        }
+        .answer-card.accepted { border-color:#86efac; background:rgba(220,252,231,0.35); }
+        .answer-card.disputed { border-color:#fca5a5; }
+        .answer-actions { display:flex; gap:10px; margin-top:10px; align-items:center; }
+        .answer-actions button {
+            background:none; border:1px solid #e8d5ff; border-radius:10px; padding:5px 12px;
+            font-size:12px; color:#7c3aed; cursor:pointer; font-family:Poppins,sans-serif;
+        }
+        .answer-actions button:hover { background:#f3e8ff; }
+        .accepted-pill { background:#dcfce7; color:#15803d; font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px; }
+        .disputed-pill { background:#fee2e2; color:#dc2626; font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px; }
+    </style>
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container" style="max-width:700px;">
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-message">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <h2 style="margin:0;">{{ question.title }}</h2>
+            {% if question.status == 'resolved' %}
+            <span class="accepted-pill">✅ Resolved</span>
+            {% endif %}
+        </div>
+
+        <div class="author-row" style="margin:12px 0;">
+            {% if question.author.profile_pic %}
+            <img class="author-avatar-img" src="{{ url_for('static', filename='uploads/profile_pics/' + question.author.profile_pic) }}">
+            {% else %}
+            <span class="author-avatar-fallback">{{ (question.author.name[:2].upper() if question.author.name else '??') }}</span>
+            {% endif %}
+            <span class="author-name">{{ question.author.name }}{% if question.author.is_admin %}<span class="admin-badge">ADMIN</span>{% endif %}</span>
+            <span class="social-links">
+                {% if question.author.github_url %}<a href="{{ question.author.github_url }}" target="_blank" rel="noopener" style="color:#181717;"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23a11.5 11.5 0 013.003-.404c1.02.005 2.047.138 3.006.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a>{% endif %}
+                {% if question.author.linkedin_url %}<a href="{{ question.author.linkedin_url }}" target="_blank" rel="noopener" style="color:#0A66C2;"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 11-.001-4.125 2.062 2.062 0 010 4.125zM7.119 20.452H3.554V9h3.565v11.452z"/></svg></a>{% endif %}
+                {% if question.author.portfolio_url %}<a href="{{ question.author.portfolio_url }}" target="_blank" rel="noopener">🌐</a>{% endif %}
+                {% if question.author.instagram_url %}<a href="{{ question.author.instagram_url }}" target="_blank" rel="noopener" style="color:#E4405F;"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zm0 10.162a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>{% endif %}
+            </span>
+            <span style="font-size:12px; color:#b59fd4;">· {{ question.created_at.strftime('%b %d, %Y %I:%M %p') if question.created_at else '' }}</span>
+        </div>
+
+        <p style="font-size:14px; color:#4a2e6e; white-space:pre-wrap;">{{ question.body }}</p>
+
+        {% if question.tags %}
+        <div>{% for tag in question.tags %}<span class="q-tag">{{ tag }}</span>{% endfor %}</div>
+        {% endif %}
+
+        {% if is_admin %}
+        <div style="margin-top:14px;">
+            <button onclick="deleteQuestion()" style="background:none;border:1px solid #fca5a5;color:#dc2626;border-radius:10px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:Poppins,sans-serif;">🗑 Delete Question</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <h3 style="margin:24px 0 8px;">{{ answers|length }} Answer{{ 's' if answers|length != 1 else '' }}</h3>
+
+    {% for a in answers %}
+    <div class="answer-card {{ 'accepted' if a.is_accepted else '' }} {{ 'disputed' if a.disputed and not a.is_accepted else '' }}" id="answer-{{ a.answer_id }}">
+        <div class="author-row">
+            {% if a.author.profile_pic %}
+            <img class="author-avatar-img" src="{{ url_for('static', filename='uploads/profile_pics/' + a.author.profile_pic) }}">
+            {% else %}
+            <span class="author-avatar-fallback">{{ (a.author.name[:2].upper() if a.author.name else '??') }}</span>
+            {% endif %}
+            <span class="author-name">{{ a.author.name }}{% if a.author.is_admin %}<span class="admin-badge">ADMIN</span>{% endif %}</span>
+            <span class="social-links">
+                {% if a.author.github_url %}<a href="{{ a.author.github_url }}" target="_blank" rel="noopener">🐙</a>{% endif %}
+                {% if a.author.linkedin_url %}<a href="{{ a.author.linkedin_url }}" target="_blank" rel="noopener">💼</a>{% endif %}
+                {% if a.author.portfolio_url %}<a href="{{ a.author.portfolio_url }}" target="_blank" rel="noopener">🌐</a>{% endif %}
+                {% if a.author.instagram_url %}<a href="{{ a.author.instagram_url }}" target="_blank" rel="noopener">📷</a>{% endif %}
+            </span>
+            <span style="font-size:12px; color:#b59fd4;">· {{ a.created_at.strftime('%b %d, %Y %I:%M %p') if a.created_at else '' }}</span>
+            {% if a.is_accepted %}<span class="accepted-pill" style="margin-left:auto;">✔ Accepted</span>{% endif %}
+            {% if a.disputed and not a.is_accepted %}<span class="disputed-pill" style="margin-left:auto;">⚠ Disputed ({{ a.flag_count }})</span>{% endif %}
+        </div>
+        <p style="font-size:14px; color:#4a2e6e; white-space:pre-wrap; margin-top:10px;">{{ a.body }}</p>
+
+        <div class="answer-actions">
+            {% if is_asker and not question.accepted_answer_id %}
+            <button onclick="acceptAnswer({{ a.answer_id }})">✔ Mark as Accepted</button>
+            {% endif %}
+            {% if a.author_id != current_student_id and not a.is_accepted %}
+            <button onclick="flagAnswer({{ a.answer_id }})">⚠ Mark Incorrect</button>
+            {% endif %}
+            {% if is_admin %}
+            <button onclick="deleteAnswer({{ a.answer_id }})" style="border-color:#fca5a5; color:#dc2626;">🗑 Delete</button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if not answers %}
+    <p style="text-align:center; color:#9d82c0; padding:20px;">No answers yet — be the first to help! 🌸</p>
+    {% endif %}
+
+    <div class="card" style="margin-top:20px;">
+        <p class="form-section-title">Post an Answer</p>
+        <form method="POST" action="/community/question/{{ question.question_id }}/answer">
+            <textarea name="body" placeholder="Share what you know..." style="min-height:100px; width:100%;" required></textarea>
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:12px;">Post Answer 🌸</button>
+        </form>
+    </div>
+
+    <div class="card-top">
+        <a href="{{ url_for('community') }}" class="btn-back">← Back to Community</a>
+    </div>
+</div>
+
+<script>
+async function acceptAnswer(answerId) {
+    if (!confirm('Mark this answer as accepted? This resolves your question.')) return;
+    const res = await fetch(`/community/answer/${answerId}/accept`, {method: 'POST'});
+    const data = await res.json();
+    if (data.ok) location.reload();
+    else alert(data.error || 'Could not accept answer.');
+}
+
+async function flagAnswer(answerId) {
+    if (!confirm('Mark this answer as incorrect?')) return;
+    const res = await fetch(`/community/answer/${answerId}/flag`, {method: 'POST'});
+    const data = await res.json();
+    if (data.ok) location.reload();
+    else alert(data.error || 'Could not flag answer.');
+}
+
+async function deleteAnswer(answerId) {
+    if (!confirm('Delete this answer?')) return;
+    const res = await fetch(`/community/answer/${answerId}/delete`, {method: 'POST'});
+    const data = await res.json();
+    if (data.ok) location.reload();
+}
+
+async function deleteQuestion() {
+    if (!confirm('Delete this entire question and all its answers?')) return;
+    const res = await fetch(`/community/question/{{ question.question_id }}/delete`, {method: 'POST'});
+    const data = await res.json();
+    if (data.ok) window.location.href = '/community';
+}
+</script>
+</body>
+</html>

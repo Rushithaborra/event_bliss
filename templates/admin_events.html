@@ -85,6 +85,7 @@
                                    onclick="return confirm('Delete this event?')">🗑 Delete</a>
                             {% endif %}
                             <a href="/rsvp/{{ event[0] }}" target="_blank" class="btn-action">🔗 RSVP Link</a>
+                            <a href="/event/{{ event[0] }}/discussion" class="btn-action">💬 Discussion</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -135,6 +136,7 @@
                                 <a href="/admin/event/{{ event[0] }}" class="btn-action">👥 Registrations</a>
                             {% endif %}
                             <a href="/admin_attendance/{{ event[0] }}" class="btn-action" style="background:#7c3aed;color:#fff;">📋 Attendance</a>
+                            <a href="/event/{{ event[0] }}/discussion" class="btn-action">💬 Discussion</a>
                         </td>
                     </tr>
                     {% endfor %}

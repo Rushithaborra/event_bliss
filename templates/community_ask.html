@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ask a Doubt — Community — Event Bliss</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container" style="max-width:640px;">
+    <h2>➕ Ask a Doubt</h2>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-message">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <form method="POST">
+            <label>Title <span style="color:#e07aad;">*</span></label>
+            <input type="text" name="title" value="{{ title }}" placeholder="e.g. How do I set up a virtual environment?" required maxlength="255">
+
+            <label style="margin-top:14px; display:block;">Details <span style="color:#e07aad;">*</span></label>
+            <textarea name="body" placeholder="Describe your doubt in detail..." style="min-height:140px; width:100%;" required>{{ body }}</textarea>
+
+            <label style="margin-top:14px; display:block;">Tags <span style="font-weight:400; color:#b59fd4;">(comma-separated, optional)</span></label>
+            <input type="text" name="tags" value="{{ tags }}" placeholder="e.g. python, react, resume">
+
+            <button type="submit" class="primary-btn" style="width:100%; margin-top:16px;">Post Question 🌸</button>
+        </form>
+    </div>
+
+    <div class="card-top">
+        <a href="{{ url_for('community') }}" class="btn-back">← Back to Community</a>
+    </div>
+</div>
+</body>
+</html>

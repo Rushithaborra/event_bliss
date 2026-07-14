@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Community — Event Bliss</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .tab-bar { display:flex; gap:10px; margin-bottom:20px; }
+        .tab-btn {
+            padding:8px 22px; border:none; border-radius:20px; cursor:pointer;
+            font-family:Poppins,sans-serif; font-size:13px; font-weight:600;
+            background:rgba(255,255,255,0.3); color:#7c3aed; transition:.2s;
+            text-decoration: none; display:inline-block;
+        }
+        .tab-btn.active { background:#7c3aed; color:#fff; }
+        .q-row {
+            display:flex; justify-content:space-between; align-items:flex-start;
+            padding:16px; border-bottom:1px solid #f0e6ff; gap:14px;
+        }
+        .q-row:last-child { border-bottom:none; }
+        .q-title { font-weight:600; color:#7c3aed; font-size:15px; text-decoration:none; }
+        .q-title:hover { text-decoration:underline; }
+        .q-meta { font-size:12px; color:#9d82c0; margin-top:6px; }
+        .q-tag {
+            display:inline-block; background:#f3e8ff; color:#7c3aed; font-size:11px;
+            padding:2px 10px; border-radius:12px; margin-right:6px; font-weight:600;
+        }
+        .q-badge {
+            font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px; white-space:nowrap;
+        }
+        .q-badge-resolved { background:#dcfce7; color:#15803d; }
+        .q-badge-attention { background:#fee2e2; color:#dc2626; }
+        .q-badge-open { background:#e0f0ff; color:#3b82f6; }
+        .q-answers { font-size:12px; color:#9d82c0; white-space:nowrap; }
+    </style>
+</head>
+<body>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div class="container">
+    <h2>🌈 Community</h2>
+    <p style="font-size:13px; color:#9d82c0; margin-top:-10px;">Ask a doubt, get help from anyone in the community.</p>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-message">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
+
+    <div class="tab-bar">
+        <a href="/community?tab=all" class="tab-btn {{ 'active' if tab == 'all' }}">💬 All</a>
+        <a href="/community?tab=unanswered" class="tab-btn {{ 'active' if tab == 'unanswered' }}">❓ Unanswered</a>
+        <a href="/community?tab=resolved" class="tab-btn {{ 'active' if tab == 'resolved' }}">✅ Resolved</a>
+        {% if not is_admin %}
+        <a href="/community/ask" class="tab-btn" style="margin-left:auto; background:#7c3aed; color:#fff;">➕ Ask a Doubt</a>
+        {% endif %}
+    </div>
+
+    <div class="card" style="padding:0;">
+        {% if questions %}
+        {% for q in questions %}
+        <div class="q-row">
+            <div>
+                <a href="/community/question/{{ q.question_id }}" class="q-title">{{ q.title }}</a>
+                <div class="q-meta">
+                    by {{ q.author.name }}
+                    {% if q.author.is_admin %}<span style="background:#7c3aed;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-left:2px;">ADMIN</span>{% endif %}
+                    · {{ q.created_at.strftime('%b %d, %Y %I:%M %p') if q.created_at else '' }}
+                </div>
+                {% if q.tags %}
+                <div style="margin-top:8px;">
+                    {% for tag in q.tags %}<span class="q-tag">{{ tag }}</span>{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+                {% if q.status == 'resolved' %}
+                <span class="q-badge q-badge-resolved">✅ Resolved</span>
+                {% elif q.needs_attention %}
+                <span class="q-badge q-badge-attention">⏰ Needs an answer</span>
+                {% else %}
+                <span class="q-badge q-badge-open">🟢 Open</span>
+                {% endif %}
+                <span class="q-answers">{{ q.answer_count }} answer{{ 's' if q.answer_count != 1 else '' }}</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="text-align:center; color:#9d82c0; padding:40px;">No questions here yet 🌸</p>
+        {% endif %}
+    </div>
+
+    <div class="card-top">
+        <a href="{{ url_for('dashboard') if not is_admin else url_for('admin_dashboard') }}" class="btn-back">← Back to Dashboard</a>
+    </div>
+</div>
+</body>
+</html>
