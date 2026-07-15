@@ -318,18 +318,21 @@
                         <span id="current-phone-text">{{ student.phone or 'Not set' }}</span>
                         <button type="button" onclick="togglePhoneChange()" style="margin-left:auto; background:none; border:none; color:#9d5cf5; cursor:pointer; font-size:12px; font-weight:600;">Change</button>
                     </div>
+                    <div class="inline-msg" id="phone-saved-msg"></div>
                     <div id="phone-change-section" style="display:none; margin-top:8px;">
                         <div class="change-row">
-                            <input type="text" id="new-phone-input" placeholder="Enter new phone number">
+                            <input type="tel" id="new-phone-input" placeholder="10-digit number (or with +country code)">
                             <button type="button" class="primary-btn" id="send-phone-otp-btn" onclick="sendPhoneOtp()" style="white-space:nowrap; padding:10px 16px;">Send OTP</button>
                         </div>
-                        <p style="font-size:11px; color:#b59fd4; margin:4px 0 0;">OTP will be sent to your registered email.</p>
+                        <p style="font-size:11px; color:#b59fd4; margin:4px 0 0;">An OTP will be sent to this number via SMS (or to your registered email if SMS is unavailable).</p>
                         <div class="otp-row" id="phone-otp-row">
                             <input type="text" id="phone-otp-input" placeholder="Enter 6-digit OTP" maxlength="6">
                             <button type="button" class="primary-btn" onclick="verifyPhoneOtp()" style="white-space:nowrap; padding:10px 16px;">Verify</button>
                         </div>
                         <div class="inline-msg" id="phone-msg"></div>
-                        <button type="button" onclick="togglePhoneChange()" style="background:none; border:none; color:#b59fd4; font-size:12px; cursor:pointer; margin-top:4px;">Cancel</button>
+                        <button type="button" id="resend-phone-otp-btn" onclick="resendPhoneOtp()" style="display:none; background:none; border:none; color:#9d5cf5; font-size:12px; font-weight:600; cursor:pointer; margin-top:4px;">Resend code</button>
+                        <button type="button" id="phone-cancel-btn" onclick="togglePhoneChange()" style="background:none; border:none; color:#b59fd4; font-size:12px; cursor:pointer; margin-top:4px;">Cancel</button>
+                        <button type="button" id="phone-done-btn" onclick="confirmPhoneChange()" class="primary-btn" style="display:none; margin-top:8px; padding:8px 22px;">Done ✓</button>
                     </div>
                 </div>
 
@@ -389,7 +392,12 @@ function togglePhoneChange() {
     s.style.display = s.style.display === 'none' ? 'block' : 'none';
     document.getElementById('phone-msg').textContent = '';
     document.getElementById('phone-otp-row').style.display = 'none';
+    document.getElementById('resend-phone-otp-btn').style.display = 'none';
+    document.getElementById('phone-done-btn').style.display = 'none';
+    document.getElementById('phone-cancel-btn').style.display = 'inline';
+    document.querySelector('#phone-change-section .change-row').style.display = 'flex';
     document.getElementById('new-phone-input').value = '';
+    document.getElementById('phone-otp-input').value = '';
 }
 
 function setMsg(id, text, isOk) {
@@ -437,11 +445,21 @@ async function verifyEmailOtp() {
     }
 }
 
+function showPhoneOtpSent(data) {
+    if (data.channel === 'sms') {
+        setMsg('phone-msg', `OTP sent to ${data.sent_to} via SMS.`, true);
+    } else {
+        setMsg('phone-msg', `SMS unavailable — OTP emailed to ${data.sent_to}. Check your inbox.`, true);
+    }
+    document.getElementById('phone-otp-row').style.display = 'flex';
+    document.getElementById('resend-phone-otp-btn').style.display = 'inline';
+}
+
 async function sendPhoneOtp() {
     const phone = document.getElementById('new-phone-input').value.trim();
     if (!phone) { setMsg('phone-msg', 'Please enter a phone number.', false); return; }
     document.getElementById('send-phone-otp-btn').disabled = true;
-    setMsg('phone-msg', 'Sending OTP to your phone...', true);
+    setMsg('phone-msg', 'Sending OTP...', true);
     const res = await fetch('/send_phone_change_otp', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -450,8 +468,21 @@ async function sendPhoneOtp() {
     const data = await res.json();
     document.getElementById('send-phone-otp-btn').disabled = false;
     if (data.ok) {
-        setMsg('phone-msg', `OTP sent to ${data.sent_to} via SMS.`, true);
-        document.getElementById('phone-otp-row').style.display = 'flex';
+        showPhoneOtpSent(data);
+    } else {
+        setMsg('phone-msg', data.error, false);
+    }
+}
+
+async function resendPhoneOtp() {
+    const btn = document.getElementById('resend-phone-otp-btn');
+    btn.disabled = true;
+    setMsg('phone-msg', 'Resending OTP...', true);
+    const res = await fetch('/resend_phone_change_otp', {method: 'POST'});
+    const data = await res.json();
+    setTimeout(() => { btn.disabled = false; }, 15000);
+    if (data.ok) {
+        showPhoneOtpSent(data);
     } else {
         setMsg('phone-msg', data.error, false);
     }
@@ -489,14 +520,45 @@ async function verifyPhoneOtp() {
     });
     const data = await res.json();
     if (data.ok) {
-        setMsg('phone-msg', '✅ Phone number updated successfully!', true);
-        document.getElementById('current-phone-text').textContent = data.new_phone;
-        document.getElementById('phone-change-section').style.display = 'none';
+        setMsg('phone-msg', `✅ ${data.new_phone} verified! Click Done to save.`, true);
         document.getElementById('phone-otp-row').style.display = 'none';
+        document.getElementById('resend-phone-otp-btn').style.display = 'none';
+        document.getElementById('phone-cancel-btn').style.display = 'none';
+        document.getElementById('phone-done-btn').style.display = 'inline-block';
+        document.querySelector('#phone-change-section .change-row').style.display = 'none';
     } else {
         setMsg('phone-msg', data.error, false);
     }
 }
+
+async function confirmPhoneChange() {
+    const btn = document.getElementById('phone-done-btn');
+    btn.disabled = true;
+    const res = await fetch('/confirm_phone_change', {method: 'POST'});
+    const data = await res.json();
+    btn.disabled = false;
+    if (data.ok) {
+        document.getElementById('current-phone-text').textContent = data.new_phone;
+        togglePhoneChange();
+        setMsg('phone-saved-msg', '✅ Profile updated successfully!', true);
+        setTimeout(() => { document.getElementById('phone-saved-msg').textContent = ''; }, 5000);
+    } else {
+        setMsg('phone-msg', data.error, false);
+    }
+}
+
+// Pressing Enter in the change-email/phone inputs must not submit the
+// surrounding profile form (which reloads the page mid-verification).
+function guardEnter(id, action) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); action(); }
+    });
+}
+guardEnter('new-phone-input', sendPhoneOtp);
+guardEnter('phone-otp-input', verifyPhoneOtp);
+guardEnter('new-email-input', sendEmailOtp);
+guardEnter('email-otp-input', verifyEmailOtp);
 </script>
 </body>
 </html>

@@ -76,14 +76,27 @@ app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_USERNAME")
 mail = Mail(app)
 
-# ─── SMS (TWILIO) CONFIG ───────────────────────────────────────────────────────
-TWILIO_ACCOUNT_SID   = os.environ.get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN    = os.environ.get("TWILIO_AUTH_TOKEN")
-TWILIO_PHONE_NUMBER  = os.environ.get("TWILIO_PHONE_NUMBER")
+# ─── SMS (TWILIO VERIFY) CONFIG ───────────────────────────────────────────────
+TWILIO_ACCOUNT_SID        = os.environ.get("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN         = os.environ.get("TWILIO_AUTH_TOKEN")
+TWILIO_VERIFY_SERVICE_SID = os.environ.get("TWILIO_VERIFY_SERVICE_SID")
 twilio_client = (
     TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
     if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN else None
 )
+
+def normalize_phone(raw):
+    """Return the number in E.164 (+countrycode...) form, defaulting to India (+91)."""
+    digits = re.sub(r"[^\d+]", "", raw or "")
+    if digits.startswith("+"):
+        return digits
+    if digits.startswith("0") and len(digits) == 11:
+        digits = digits[1:]
+    if len(digits) == 10:
+        return "+91" + digits
+    if digits.startswith("91") and len(digits) == 12:
+        return "+" + digits
+    return None
 
 # ─── JWT CONFIG ───────────────────────────────────────────────────────────────
 JWT_SECRET    = os.environ.get("JWT_SECRET", "fallback_jwt_secret")
@@ -1386,32 +1399,81 @@ def verify_email_change():
     return jsonify({"ok": True, "new_email": pending["new_email"]})
 
 
-# ─── PHONE CHANGE OTP ─────────────────────────────────────────────────────────
+# ─── PHONE CHANGE VERIFICATION (TWILIO VERIFY, EMAIL FALLBACK) ────────────────
+def _send_phone_change_code(new_phone, student_id):
+    """Try SMS via Twilio Verify; fall back to emailing an OTP to the student's
+    registered address. Stores pending state in the session and returns
+    (ok, channel_or_error)."""
+    if twilio_client and TWILIO_VERIFY_SERVICE_SID:
+        try:
+            twilio_client.verify.v2.services(TWILIO_VERIFY_SERVICE_SID).verifications.create(
+                to=new_phone, channel="sms"
+            )
+            session["phone_change_pending"] = {"phone": new_phone, "channel": "sms"}
+            return True, "sms"
+        except Exception as e:
+            app.logger.warning(f"Phone change SMS failed, falling back to email: {e}")
+
+    cursor.execute("SELECT email FROM students WHERE student_id=%s", (student_id,))
+    row = cursor.fetchone()
+    if not row or not row[0]:
+        return False, "Could not send the OTP by SMS or email. Please try again later."
+    email = row[0]
+    otp = str(random.randint(100000, 999999))
+    expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
+    try:
+        msg = Message("Verify Phone Number Change — Event Bliss", recipients=[email])
+        msg.body = (
+            f"Hi,\n\n"
+            f"You requested to change your phone number to {new_phone} on Event Bliss.\n\n"
+            f"Your verification OTP is:\n\n"
+            f"  {otp}\n\n"
+            f"This OTP is valid for 10 minutes. Do not share it.\n\n"
+            f"If you did not request this, ignore this email.\n\n"
+            f"— Event Bliss Team"
+        )
+        mail.send(msg)
+    except Exception as e:
+        app.logger.error(f"Phone change email OTP error: {e}")
+        return False, "Could not send the OTP by SMS or email. Please try again later."
+    session["phone_change_pending"] = {
+        "phone": new_phone, "channel": "email", "email": email,
+        "otp": otp, "expires_at": expiry,
+    }
+    return True, "email"
+
+
 @app.route("/send_phone_change_otp", methods=["POST"])
 def send_phone_change_otp():
     user = get_current_user()
     if not user or user.get("role") != "student":
         return jsonify({"ok": False, "error": "Not logged in"}), 401
-    if not twilio_client or not TWILIO_PHONE_NUMBER:
-        return jsonify({"ok": False, "error": "SMS verification is not configured. Please contact support."})
     data = request.get_json(silent=True) or {}
-    new_phone = (data.get("new_phone") or "").strip()
+    new_phone = normalize_phone(data.get("new_phone"))
     if not new_phone:
-        return jsonify({"ok": False, "error": "Phone number is required."})
-    otp = str(random.randint(100000, 999999))
-    expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
-    session["phone_change_otp"] = {"new_phone": new_phone, "otp": otp, "expires_at": expiry}
-    try:
-        twilio_client.messages.create(
-            body=f"Your Event Bliss verification code is {otp}. Valid for 10 minutes. Do not share it.",
-            from_=TWILIO_PHONE_NUMBER,
-            to=new_phone,
-        )
-        return jsonify({"ok": True, "sent_to": new_phone})
-    except Exception as e:
-        app.logger.error(f"Phone change OTP error: {e}")
-        session.pop("phone_change_otp", None)
-        return jsonify({"ok": False, "error": "Could not send OTP SMS. Check the phone number and try again."})
+        return jsonify({"ok": False, "error": "Please enter a valid phone number (10 digits, or with country code)."})
+    ok, result = _send_phone_change_code(new_phone, user["user_id"])
+    if not ok:
+        return jsonify({"ok": False, "error": result})
+    pending = session["phone_change_pending"]
+    sent_to = new_phone if result == "sms" else pending["email"]
+    return jsonify({"ok": True, "channel": result, "sent_to": sent_to})
+
+
+@app.route("/resend_phone_change_otp", methods=["POST"])
+def resend_phone_change_otp():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    pending = session.get("phone_change_pending")
+    if not pending:
+        return jsonify({"ok": False, "error": "No pending phone change. Please start again."})
+    ok, result = _send_phone_change_code(pending["phone"], user["user_id"])
+    if not ok:
+        return jsonify({"ok": False, "error": result})
+    new_pending = session["phone_change_pending"]
+    sent_to = pending["phone"] if result == "sms" else new_pending["email"]
+    return jsonify({"ok": True, "channel": result, "sent_to": sent_to})
 
 
 @app.route("/verify_phone_change", methods=["POST"])
@@ -1421,18 +1483,48 @@ def verify_phone_change():
         return jsonify({"ok": False, "error": "Not logged in"}), 401
     data = request.get_json(silent=True) or {}
     entered = (data.get("otp") or "").strip()
-    pending = session.get("phone_change_otp")
+    pending = session.get("phone_change_pending")
     if not pending:
         return jsonify({"ok": False, "error": "No OTP session. Please resend."})
-    if datetime.datetime.now(datetime.timezone.utc) > datetime.datetime.fromisoformat(pending["expires_at"]):
-        session.pop("phone_change_otp", None)
-        return jsonify({"ok": False, "error": "OTP expired. Please resend."})
-    if entered != pending["otp"]:
-        return jsonify({"ok": False, "error": "Incorrect OTP."})
-    cursor.execute("UPDATE students SET phone=%s WHERE student_id=%s", (pending["new_phone"], user["user_id"]))
+    if not entered:
+        return jsonify({"ok": False, "error": "Please enter the OTP."})
+
+    if pending["channel"] == "sms":
+        try:
+            check = twilio_client.verify.v2.services(TWILIO_VERIFY_SERVICE_SID).verification_checks.create(
+                to=pending["phone"], code=entered
+            )
+        except Exception as e:
+            app.logger.error(f"Phone change OTP check error: {e}")
+            return jsonify({"ok": False, "error": "OTP expired or too many attempts. Please resend."})
+        if check.status != "approved":
+            return jsonify({"ok": False, "error": "Incorrect OTP."})
+    else:
+        if datetime.datetime.now(datetime.timezone.utc) > datetime.datetime.fromisoformat(pending["expires_at"]):
+            session.pop("phone_change_pending", None)
+            return jsonify({"ok": False, "error": "OTP expired. Please resend."})
+        if entered != pending["otp"]:
+            return jsonify({"ok": False, "error": "Incorrect OTP."})
+
+    # Verified — but don't save yet; the number is written only when the
+    # student confirms with the Done button.
+    session.pop("phone_change_pending", None)
+    session["phone_change_verified"] = pending["phone"]
+    return jsonify({"ok": True, "new_phone": pending["phone"]})
+
+
+@app.route("/confirm_phone_change", methods=["POST"])
+def confirm_phone_change():
+    user = get_current_user()
+    if not user or user.get("role") != "student":
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    verified_phone = session.get("phone_change_verified")
+    if not verified_phone:
+        return jsonify({"ok": False, "error": "No verified phone number to save. Please verify again."})
+    cursor.execute("UPDATE students SET phone=%s WHERE student_id=%s", (verified_phone, user["user_id"]))
     db.commit()
-    session.pop("phone_change_otp", None)
-    return jsonify({"ok": True, "new_phone": pending["new_phone"]})
+    session.pop("phone_change_verified", None)
+    return jsonify({"ok": True, "new_phone": verified_phone})
 
 
 # ─── SHARED IDENTITY HELPER (used by discussion room + community) ────────────
