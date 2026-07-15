@@ -42,6 +42,16 @@ def normalize_social_url(url):
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback_secret")
 
+# ─── PRODUCTION (RENDER) CONFIG ───────────────────────────────────────────────
+# Render sets the RENDER env var on its services; behind its HTTPS proxy we
+# must trust X-Forwarded-* headers and mark cookies secure.
+IS_PRODUCTION = bool(os.environ.get("RENDER") or os.environ.get("PRODUCTION"))
+if IS_PRODUCTION:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    app.config["PREFERRED_URL_SCHEME"] = "https"
+    app.config["SESSION_COOKIE_SECURE"] = True
+
 @app.template_filter('fmt_time')
 def fmt_time(t):
     """Format a TIME value (timedelta or time) as 12-hour HH:MM AM/PM."""
@@ -364,6 +374,7 @@ def set_jwt_cookie(response, data: dict):
         httponly=True,
         max_age=JWT_EXPIRY_HOURS * 3600,
         samesite="Lax",
+        secure=IS_PRODUCTION,
     )
     return response
 
@@ -372,6 +383,12 @@ def set_jwt_cookie(response, data: dict):
 @app.route("/")
 def home():
     return redirect("/select_role")
+
+
+# Serve the PWA service worker from the site root so its scope covers all pages
+@app.route("/service-worker.js")
+def service_worker():
+    return app.send_static_file("service-worker.js")
 
 
 # ─── REGISTER ─────────────────────────────────────────────────────────────────
@@ -504,7 +521,9 @@ def student_login():
 # ─── GOOGLE OAUTH ─────────────────────────────────────────────────────────────
 @app.route("/google_login")
 def google_login():
-    redirect_uri = "http://127.0.0.1:5000/google_callback"
+    # Build the callback URL from the actual request host, so the same code
+    # works locally (127.0.0.1:5000) and on the deployed domain.
+    redirect_uri = url_for("google_callback", _external=True)
     return google.authorize_redirect(redirect_uri)
 
 

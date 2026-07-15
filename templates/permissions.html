@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#7c3aed">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <title>Permissions — Event Bliss</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
@@ -172,6 +177,11 @@ function togglePw(id, btn) {
     const inp = document.getElementById(id);
     if (inp.classList.contains('masked-pw')) { inp.classList.remove('masked-pw'); btn.textContent = '🙈'; }
     else { inp.classList.add('masked-pw'); btn.textContent = '👁'; }
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js');
 }
 </script>
 </body>
