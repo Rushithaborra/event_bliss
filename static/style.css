@@ -892,6 +892,78 @@ border-radius:20px;
     gap: 14px 24px;
 }
 
+/* ─── MOBILE / RESPONSIVE ────────────────────────────────────────────────── */
+.navbar { z-index: 100; }
+
+@media (max-width: 700px) {
+    /* Navbar: stack logo above links, keep it readable and above content */
+    .navbar {
+        flex-direction: column;
+        gap: 10px;
+        width: calc(100% - 24px);
+        box-sizing: border-box;
+        padding: 12px 14px;
+        border-radius: 22px;
+        top: 8px;
+        background: rgba(255, 248, 245, 0.92);
+    }
+    .nav-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px 18px;
+    }
+    .nav-links a {
+        margin-left: 0;
+        font-size: 14px;
+        padding: 4px 2px;
+    }
+
+    /* Layout: use the full phone width */
+    .container {
+        width: auto;
+        margin: 24px 14px 0;
+    }
+    h1 { font-size: 24px; margin-top: 22px; }
+    h2 { font-size: 20px; margin-top: 22px; }
+    h3 { font-size: 17px; }
+
+    .card, .dashboard-card, .welcome-bubble {
+        padding: 18px 16px;
+        border-radius: 18px;
+        margin-bottom: 18px;
+    }
+    .welcome-bubble { font-size: 17px; }
+    .dashboard-grid { gap: 16px; }
+
+    /* Tables: scroll sideways inside their card instead of breaking the page */
+    table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+    }
+    thead th, td { padding: 10px 12px; font-size: 13px; }
+
+    /* Login / form cards */
+    .center-wrapper {
+        height: auto;
+        min-height: 85vh;
+        padding: 20px 0;
+        align-items: flex-start;
+    }
+    .glass-card {
+        padding: 28px 20px;
+        width: calc(100% - 28px);
+        box-sizing: border-box;
+        margin: auto 14px;
+    }
+
+    /* Inputs & buttons: comfortable touch targets, no iOS zoom-on-focus */
+    input, select, textarea { font-size: 16px; box-sizing: border-box; max-width: 100%; }
+    button, a.button, .primary-btn { padding: 12px 20px; }
+}
+
 @media (max-width: 600px) {
     .reg-grid { grid-template-columns: 1fr; }
 }
