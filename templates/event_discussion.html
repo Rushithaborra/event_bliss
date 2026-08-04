@@ -97,7 +97,11 @@
     </div>
 
     <div class="card-top">
+        {% if is_admin %}
+        <a href="{{ url_for('admin_events', tab='completed' if is_completed else 'upcoming') }}" class="btn-back">← Back to Events</a>
+        {% else %}
         <a href="{{ url_for('my_events') }}" class="btn-back">← Back to My Events</a>
+        {% endif %}
     </div>
 </div>
 

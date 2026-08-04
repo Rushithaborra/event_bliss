@@ -208,7 +208,7 @@ def set_jwt_cookie(response, data: dict):
 # ─── HOME ─────────────────────────────────────────────────────────────────────
 @app.route("/")
 def home():
-    return render_template("home.html")
+    return redirect("/select_role")
 
 
 # ─── REGISTER ─────────────────────────────────────────────────────────────────

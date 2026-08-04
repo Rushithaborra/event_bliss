@@ -1596,7 +1596,7 @@ def event_discussion(event_id):
         flash("⚠ You need to be registered for this event to join its discussion room.")
         return redirect("/my_events")
 
-    cursor.execute("SELECT event_id, event_name FROM events WHERE event_id=%s", (event_id,))
+    cursor.execute("SELECT event_id, event_name, event_date FROM events WHERE event_id=%s", (event_id,))
     event_row = cursor.fetchone()
     if not event_row:
         abort(404)
@@ -1605,6 +1605,7 @@ def event_discussion(event_id):
         "event_discussion.html",
         event={"event_id": event_row[0], "event_name": event_row[1]},
         is_admin=(user.get("role") == "admin"),
+        is_completed=(event_row[2] < datetime.date.today()),
     )
 
 
