@@ -37,11 +37,12 @@
             <input type="text" name="username" placeholder="Choose a unique username" required autocomplete="off">
 
             <label>Email</label>
-            <input type="email" name="email" placeholder="you@example.com" required autocomplete="off">
+            <input type="email" id="email-reg" name="email" placeholder="you@example.com" required autocomplete="off" oninput="checkEmail()">
+            <div id="email-feedback" style="font-size:11.5px; margin:-8px 0 14px 2px; display:none;"></div>
 
             <label>Password</label>
             <div style="position:relative; margin-bottom:6px;">
-                <input type="password" id="pw-reg" name="password" placeholder="Create a password" required autocomplete="new-password" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);" oninput="checkRules('pw-reg','rules-reg')">
+                <input type="password" id="pw-reg" name="password" placeholder="Create a password" required autocomplete="new-password" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);" oninput="checkRules('pw-reg','rules-reg'); checkMatch();">
                 <button type="button" onclick="togglePw('pw-reg',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
             </div>
             <div id="rules-reg" style="font-size:11.5px; margin:0 0 14px 2px; line-height:2; display:none;">
@@ -52,8 +53,36 @@
                 <span data-rule="spec"  style="color:#bbb;">✗ Special (!@#…)</span>
             </div>
 
+            <label>Confirm Password</label>
+            <div style="position:relative; margin-bottom:6px;">
+                <input type="password" id="pw-reg-confirm" name="confirm_password" placeholder="Re-enter your password" required autocomplete="new-password" style="padding-right:42px; margin-bottom:0; width:calc(100% - 32px);" oninput="checkMatch()">
+                <button type="button" onclick="togglePw('pw-reg-confirm',this)" tabindex="-1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9d82c0;font-size:16px;line-height:1;padding:0;">👁</button>
+            </div>
+            <div id="match-feedback" style="font-size:11.5px; margin:0 0 14px 2px; display:none;"></div>
+
             <button type="submit" class="primary-btn" style="width:100%; margin-top:8px;">Register 🎉</button>
         </form>
+
+        <div style="text-align:center; margin:16px 0 10px; opacity:0.5; font-size:13px;">— or —</div>
+
+        <a href="/google_login" style="
+            display:block; text-align:center; padding:11px 16px;
+            border-radius:20px;
+            background:linear-gradient(135deg,#fde8f5,#ede0ff);
+            color:#6d28d9; font-size:14px; font-weight:500;
+            text-decoration:none;
+            border:1.5px solid #cbb4f4;
+            transition:0.3s ease;
+        " onmouseover="this.style.boxShadow='0 4px 14px rgba(203,180,244,0.5)'"
+           onmouseout="this.style.boxShadow='none'">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                 width="16" style="vertical-align:middle; margin-right:8px;">
+            Sign up with Google
+        </a>
+
+        <div style="text-align:center; margin-top:16px; font-size:13px; color:#a78bca;">
+            Already have an account? <a href="/student_login" style="color:#7c3aed; font-weight:600;">Login</a>
+        </div>
 
         <div style="text-align:center; margin-top:18px;">
             <a href="/" class="btn-back">← Back to Home</a>
@@ -88,11 +117,57 @@ function pwValid(inputId) {
     const v = document.getElementById(inputId).value;
     return Object.values(PW_CHECKS).every(fn => fn(v));
 }
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function checkEmail() {
+    const v = document.getElementById('email-reg').value;
+    const box = document.getElementById('email-feedback');
+    if (!v.length) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    if (EMAIL_RE.test(v)) {
+        box.textContent = '✓ Looks good';
+        box.style.color = '#7c3aed';
+    } else {
+        box.textContent = '✗ Enter a valid email address';
+        box.style.color = '#e07aad';
+    }
+}
+function emailValid() {
+    return EMAIL_RE.test(document.getElementById('email-reg').value);
+}
+function checkMatch() {
+    const pw = document.getElementById('pw-reg').value;
+    const confirm = document.getElementById('pw-reg-confirm').value;
+    const box = document.getElementById('match-feedback');
+    if (!confirm.length) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    if (pw === confirm) {
+        box.textContent = '✓ Passwords match';
+        box.style.color = '#7c3aed';
+    } else {
+        box.textContent = '✗ Passwords do not match';
+        box.style.color = '#e07aad';
+    }
+}
+function passwordsMatch() {
+    return document.getElementById('pw-reg').value === document.getElementById('pw-reg-confirm').value;
+}
 document.querySelector('form').addEventListener('submit', function(e) {
+    if (!emailValid()) {
+        e.preventDefault();
+        checkEmail();
+        document.getElementById('email-reg').focus();
+        return;
+    }
     if (!pwValid('pw-reg')) {
         e.preventDefault();
         document.getElementById('rules-reg').style.display = 'block';
         document.getElementById('pw-reg').focus();
+        return;
+    }
+    if (!passwordsMatch()) {
+        e.preventDefault();
+        checkMatch();
+        document.getElementById('pw-reg-confirm').focus();
     }
 });
 </script>

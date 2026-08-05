@@ -395,13 +395,17 @@ def service_worker():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        name     = request.form["name"]
-        username = request.form["username"].strip()
-        email    = request.form["email"]
-        password = request.form["password"]
+        name             = request.form["name"]
+        username         = request.form["username"].strip()
+        email            = request.form["email"]
+        password         = request.form["password"]
+        confirm_password = request.form.get("confirm_password", "")
 
         if not name or not username or not email or not password:
             abort(400)
+
+        if password != confirm_password:
+            return render_template("register.html", error="Passwords do not match.")
 
         pw_error = validate_password(password)
         if pw_error:

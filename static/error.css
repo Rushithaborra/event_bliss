@@ -84,3 +84,16 @@ body{
     top:50%;
     left:70%;
 }
+
+/* ---------- MOBILE ---------- */
+@media (max-width: 480px){
+    .error-container{
+        padding:36px 24px;
+        width:calc(100% - 48px);
+        box-sizing:border-box;
+        margin:0 16px;
+    }
+    .error-container h1{
+        font-size:56px;
+    }
+}
